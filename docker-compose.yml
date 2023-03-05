@@ -1,0 +1,9 @@
+version: "3.9"
+services:
+  strive:
+    build: .
+    tty: true
+    restart: on-failure
+    volumes:
+      - .:/strive
+
