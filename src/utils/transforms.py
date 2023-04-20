@@ -6,37 +6,43 @@ import torch
 
 
 def kinematics2angle(kinematics):
-    '''
+    """
     Converts heading vector to angle.
     :param kinematics: B x T x 6 (x,y,hx,hy,s,hdot)
-    '''
+    """
     hsin = kinematics[:, :, 3:4]
     hcos = kinematics[:, :, 2:3]
     new_heading = torch.atan2(hsin, hcos)
-    new_kinematics = torch.cat([kinematics[:, :, :2], new_heading, kinematics[:, :, 4:]], dim=2)
+    new_kinematics = torch.cat(
+        [kinematics[:, :, :2], new_heading, kinematics[:, :, 4:]], dim=2
+    )
     return new_kinematics
 
+
 def kinematics2vec(kinematics):
-    '''
+    """
     Converts heading angle to vector.
     :param kinematics: B x T x 5 (x,y,h,s,hdot)
-    '''
+    """
     # new kinematics with heading unit vector rather than angle
     hx = kinematics[:, :, 2].cos()
     hy = kinematics[:, :, 2].sin()
     hvec = torch.stack([hx, hy], dim=2)
-    new_kinematics = torch.cat([kinematics[:, :, :2], hvec, kinematics[:, :, 3:]], dim=-1)
+    new_kinematics = torch.cat(
+        [kinematics[:, :, :2], hvec, kinematics[:, :, 3:]], dim=-1
+    )
     return new_kinematics
 
+
 def pairwise_transforms(poses):
-    '''
+    """
     Gets all pairs of transforms (relative heading and position) between the given
     poses.
 
     :param poses: (B x N x 3) or (B x N x 4) of (x,y,h) or (x,y,hx,hy)
 
     :return: (B x N x N x 3) or (B x N x N x 4) where (b, i, j) is the pose of j in the frame of i
-    '''
+    """
     B, N, D = poses.size()
 
     # build rotation matrices
@@ -55,7 +61,7 @@ def pairwise_transforms(poses):
     Rf = Rf.view(B, N, 2, 2).unsqueeze(2).expand(B, N, N, 2, 2)
 
     # transform
-    R_local = torch.matmul(Rp, Rf) # B x N x N x 2 x 2
+    R_local = torch.matmul(Rp, Rf)  # B x N x N x 2 x 2
     local_hcos = R_local[:, :, :, 0, 0]
     local_hsin = R_local[:, :, :, 1, 0]
     if D == 3:
@@ -76,7 +82,7 @@ def pairwise_transforms(poses):
 
 
 def transform2frame(frame, poses, inverse=False):
-    '''
+    """
     Transform the given poses into the local frame of the given frame.
     All inputs are in the global frame unless inverse=True.
 
@@ -86,7 +92,7 @@ def transform2frame(frame, poses, inverse=False):
                     back to the global frame based on frame.
 
     :return: poses (B x N x 3) or (B x N x 4), but in the local frame
-    '''
+    """
     B, N, D = poses.size()
 
     # build rotation matrices
@@ -128,7 +134,9 @@ def transform2frame(frame, poses, inverse=False):
     frame_t = frame[:, :2].reshape((B, 1, 2))
     poses_t = poses[:, :, :2]
     if inverse:
-        local_t = torch.matmul(Rf.transpose(2, 3), poses_t.reshape((B, N, 2, 1)))[:, :, :, 0]
+        local_t = torch.matmul(Rf.transpose(2, 3), poses_t.reshape((B, N, 2, 1)))[
+            :, :, :, 0
+        ]
         local_t = local_t + frame_t
     else:
         local_t = poses_t - frame_t

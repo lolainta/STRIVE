@@ -851,4 +851,3 @@ def plot_box(box, lw, color='g', alpha=0.7, no_heading=False):
 def plot_car(x, y, hx, hy, l, w, color='b', alpha=0.7, no_heading=False):
     plot_box(np.array([x.item(), y.item(), hx.item(), hy.item()]), [l.item(), w.item()],
              color=color, alpha=alpha, no_heading=no_heading)
-

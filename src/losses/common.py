@@ -5,6 +5,7 @@
 import math
 import torch
 
+
 def kl_normal(qm, qv, pm, pv):
     """
     Computes the elem-wise KL divergence between two normal distributions KL(q || p) and
@@ -19,9 +20,12 @@ def kl_normal(qm, qv, pm, pv):
     Return:
         kl: tensor: (batch,): kl between each sample
     """
-    element_wise = 0.5 * (torch.log(pv) - torch.log(qv) + qv / pv + (qm - pm).pow(2) / pv - 1)
+    element_wise = 0.5 * (
+        torch.log(pv) - torch.log(qv) + qv / pv + (qm - pm).pow(2) / pv - 1
+    )
     kl = element_wise.sum(-1)
     return kl
+
 
 def log_normal(x, m, v):
     """
@@ -30,12 +34,15 @@ def log_normal(x, m, v):
     last dim.    Args:
         x: tensor: (batch_1, batch_2, ..., batch_k, dim): Observation
         m: tensor: (batch_1, batch_2, ..., batch_k, dim): Mean
-        v: tensor: (batch_1, batch_2, ..., batch_k, dim): Variance    
+        v: tensor: (batch_1, batch_2, ..., batch_k, dim): Variance
         Return:
         log_prob: tensor: (batch_1, batch_2, ..., batch_k): log probability of
             each sample. Note that the summation dimension is not kept
     """
-    log_prob = -torch.log(torch.sqrt(v)) - math.log(math.sqrt(2*math.pi)) \
-                    - ((x - m)**2 / (2*v))
+    log_prob = (
+        -torch.log(torch.sqrt(v))
+        - math.log(math.sqrt(2 * math.pi))
+        - ((x - m) ** 2 / (2 * v))
+    )
     log_prob = torch.sum(log_prob, dim=-1)
     return log_prob

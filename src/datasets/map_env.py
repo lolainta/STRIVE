@@ -7,30 +7,35 @@ import numpy as np
 import torch
 
 import sys
+
 cur_file_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(os.path.join(cur_file_path, '..'))
+sys.path.append(os.path.join(cur_file_path, ".."))
 import datasets.nuscenes_utils as nutils
 
-NUSC_MAP_SIZES = { # in meters (H x W)
-            'singapore-onenorth' : [2025.0, 1585.6],
-            'singapore-hollandvillage' : [2922.9, 2808.3],
-            'singapore-queenstown' : [3687.1, 3228.6],
-            'boston-seaport' : [2118.1, 2979.5]
-        }
+NUSC_MAP_SIZES = {  # in meters (H x W)
+    "singapore-onenorth": [2025.0, 1585.6],
+    "singapore-hollandvillage": [2922.9, 2808.3],
+    "singapore-queenstown": [3687.1, 3228.6],
+    "boston-seaport": [2118.1, 2979.5],
+}
+
 
 class NuScenesMapEnv(object):
-    def __init__(self, map_data_path,
-                       bounds=[-17.0, -38.5, 60.0, 38.5],
-                       layers=['drivable_area', 'carpark_area', 'road_divider', 'lane_divider'],
-                       L=256,
-                       W=256,
-                       device='cpu',
-                       flip_singapore=True,
-                       load_lanegraph=False,
-                       lanegraph_res_meters=1.0,
-                       lanegraph_eps=1e-6,
-                       pix_per_m=4):
-        '''
+    def __init__(
+        self,
+        map_data_path,
+        bounds=[-17.0, -38.5, 60.0, 38.5],
+        layers=["drivable_area", "carpark_area", "road_divider", "lane_divider"],
+        L=256,
+        W=256,
+        device="cpu",
+        flip_singapore=True,
+        load_lanegraph=False,
+        lanegraph_res_meters=1.0,
+        lanegraph_eps=1e-6,
+        pix_per_m=4,
+    ):
+        """
         :param map_data_path: path to the dataset e.g. /path/to/mini which contains the maps directory
         :param bounds: [low_l, low_w, high_l, high_w] distances (in meters) around location to crop map observations
         :param layers: name of the nusc layers to render
@@ -38,20 +43,25 @@ class NuScenesMapEnv(object):
         :param W: number of pixels along width of vehicle to render crop with
         :param device: the device to store the rasterized maps on. Note that for
                         5 pix/m resolution this required ~5GB of memory for road and divider layers.
-        :param flip_singapore: if true, flips singapore maps about the x axis to change driving direction from 
+        :param flip_singapore: if true, flips singapore maps about the x axis to change driving direction from
                                 left hand to right hand side
         :param load_lanegraph: if true, loads the lane graph as well
         :param lanegraph_res_meters: resolution at which to discretize lane graph
         :param lanegraph_eps:
         :param pix_per_m: resolution to discretize map layers
-        '''
+        """
         super(NuScenesMapEnv, self).__init__()
 
         self.data_path = map_data_path
         self.nusc_maps = nutils.get_nusc_maps(map_data_path)
         if load_lanegraph:
-            print('Loading lane graphs...')
-            self.lane_graphs = {map_name: nutils.process_lanegraph(nmap, lanegraph_res_meters, lanegraph_eps) for map_name,nmap in self.nusc_maps.items()}
+            print("Loading lane graphs...")
+            self.lane_graphs = {
+                map_name: nutils.process_lanegraph(
+                    nmap, lanegraph_res_meters, lanegraph_eps
+                )
+                for map_name, nmap in self.nusc_maps.items()
+            }
         self.map_list = list(self.nusc_maps.keys())
         self.layer_names = layers
         self.bounds = bounds
@@ -60,7 +70,7 @@ class NuScenesMapEnv(object):
         self.device = torch.device(device)
         self.flip_singapore = flip_singapore
 
-        self.road_list = ['drivable_area', 'road_segment', 'lane']
+        self.road_list = ["drivable_area", "road_segment", "lane"]
         self.num_layers = 0
         road_layers = [lay for lay in self.layer_names if lay in self.road_list]
         self.num_layers = 1 if len(road_layers) > 0 else 0
@@ -75,13 +85,13 @@ class NuScenesMapEnv(object):
         for lay in nonroad_layers:
             self.layer_map[lay] = lay_idx
             lay_idx += 1
-        
+
         # binarize all the layers we need for all maps and cache for crop later
-        print('Rasterizing nuscenes maps...')
+        print("Rasterizing nuscenes maps...")
         m_per_pix = 1.0 / pix_per_m
         self.nusc_raster = []
         self.nusc_dx = []
-        max_H, max_W = -float('inf'), -float('inf')
+        max_H, max_W = -float("inf"), -float("inf")
         msize_list = []
         for midx, mname in enumerate(self.map_list):
             nmap = self.nusc_maps[mname]
@@ -110,11 +120,17 @@ class NuScenesMapEnv(object):
             if len(road_layers) > 0:
                 road_img = nmap.get_map_mask(None, 0.0, road_layers, cur_msize)
                 # collapse to single layer
-                road_img = np.clip(np.sum(road_img, axis=0), 0, 1).reshape((1, cur_msize[0], cur_msize[1])).astype(np.uint8)
+                road_img = (
+                    np.clip(np.sum(road_img, axis=0), 0, 1)
+                    .reshape((1, cur_msize[0], cur_msize[1]))
+                    .astype(np.uint8)
+                )
                 map_layers.append(road_img)
 
             # draw any other layers separately (e.g. walkway)
-            other_layers = [lay for lay in self.layer_names if lay not in self.road_list]
+            other_layers = [
+                lay for lay in self.layer_names if lay not in self.road_list
+            ]
             if len(other_layers) > 0:
                 other_img = nmap.get_map_mask(None, 0.0, other_layers, cur_msize)
                 map_layers.append(other_img)
@@ -124,24 +140,24 @@ class NuScenesMapEnv(object):
             print(map_img.shape)
 
             # flip about x axis if desired (i.e. switch driving direction)
-            if self.flip_singapore and mname.split('-')[0] == 'singapore':
-                print('Flipping %s about x axis...' % (mname))
+            if self.flip_singapore and mname.split("-")[0] == "singapore":
+                print("Flipping %s about x axis..." % (mname))
                 map_img = np.flip(map_img, axis=1).copy()
 
                 if load_lanegraph:
-                    print('Flipping lane graph about x axis...')
+                    print("Flipping lane graph about x axis...")
                     # also need to flip lane graph
                     cur_lg = self.lane_graphs[mname]
                     # xys is (L, 2), reflect y
-                    xys = cur_lg['xy']
+                    xys = cur_lg["xy"]
                     mheight = NUSC_MAP_SIZES[mname][0]
-                    xys[:,1] = mheight - xys[:,1]
-                    self.lane_graphs[mname]['xy'] = xys
+                    xys[:, 1] = mheight - xys[:, 1]
+                    self.lane_graphs[mname]["xy"] = xys
                     # negate diffy in edges [x0, y0, diff[0], diff[1], dist]
-                    edges = cur_lg['edges']
-                    edges[:,1] = mheight - edges[:,1]
-                    edges[:,3] *= -1
-                    self.lane_graphs[mname]['edges'] = edges
+                    edges = cur_lg["edges"]
+                    edges[:, 1] = mheight - edges[:, 1]
+                    edges[:, 3] *= -1
+                    self.lane_graphs[mname]["edges"] = edges
 
             # # NOTE: viz debug
             # import matplotlib.pyplot as plt
@@ -165,11 +181,8 @@ class NuScenesMapEnv(object):
         self.nusc_raster = torch.stack(self.nusc_raster, dim=0).to(device)
         self.nusc_dx = torch.from_numpy(np.stack(self.nusc_dx, axis=0)).to(device)
 
-    def get_map_crop(self, scene_graph, map_idx,
-                    bounds=None,
-                    L=None,
-                    W=None):
-        '''
+    def get_map_crop(self, scene_graph, map_idx, bounds=None, L=None, W=None):
+        """
         Render local crop for whole batch of agents represented as a scene graph.
         Assumes .pos is UNNORMALIZED in true scale map coordinate frame.
 
@@ -180,7 +193,7 @@ class NuScenesMapEnv(object):
         :params bounds, L, W: overrides bounds, L, W set in constructor
 
         :returns map_crop: N x C x H x W
-        '''
+        """
         device = scene_graph.pos.device
         B = map_idx.size(0)
         NA = scene_graph.pos.size(0)
@@ -189,24 +202,22 @@ class NuScenesMapEnv(object):
         L = self.L if L is None else L
         W = self.W if W is None else W
 
-        # map index for each agent in the whole scene graph. 
+        # map index for each agent in the whole scene graph.
         mapixes = map_idx[scene_graph.batch]
         pos_in = scene_graph.pos
         if len(scene_graph.pos.size()) == 3:
             NS = scene_graph.pos.size(1)
-            pos_in = pos_in.reshape(NA*NS, -1)
+            pos_in = pos_in.reshape(NA * NS, -1)
             mapixes = mapixes.unsqueeze(1).expand(NA, NS).reshape(-1)
         # render by indexing into pre-rasterized binary maps
-        map_obs = nutils.get_map_obs(self.nusc_raster, self.nusc_dx, pos_in,
-                                     mapixes, bounds, L=L, W=W).to(device)
-        
+        map_obs = nutils.get_map_obs(
+            self.nusc_raster, self.nusc_dx, pos_in, mapixes, bounds, L=L, W=W
+        ).to(device)
+
         return map_obs
 
-    def get_map_crop_pos(self, pos, mapixes,
-                          bounds=None,
-                          L=None,
-                          W=None):
-        '''
+    def get_map_crop_pos(self, pos, mapixes, bounds=None, L=None, W=None):
+        """
         Render local crops around given global positions (assumed UNNORMALIZED).
 
         :param pos: batched positions (N x 4) (x,y,hx,hy) in .lw (N x 2) (x,y)
@@ -214,7 +225,7 @@ class NuScenesMapEnv(object):
         :params bounds, L, W: overrides bounds, L, W set in constructor
 
         :returns map_crop: N x C x H x W
-        '''
+        """
         device = pos.device
         NA = pos.size(0)
 
@@ -223,20 +234,24 @@ class NuScenesMapEnv(object):
         W = self.W if W is None else W
 
         # render by indexing into pre-rasterized binary maps
-        map_obs = nutils.get_map_obs(self.nusc_raster, self.nusc_dx, pos,
-                                     mapixes, bounds, L=L, W=W).to(device)
-        
+        map_obs = nutils.get_map_obs(
+            self.nusc_raster, self.nusc_dx, pos, mapixes, bounds, L=L, W=W
+        ).to(device)
+
         return map_obs
 
-    def objs2crop(self, center, obj_center, obj_lw, map_idx, bounds=None, L=None, W=None):
-        '''
+    def objs2crop(
+        self, center, obj_center, obj_lw, map_idx, bounds=None, L=None, W=None
+    ):
+        """
         converts given objects N x 4 to the crop frame defined by the given center (x,y,hx,hy)
-        '''
+        """
         bounds = self.bounds if bounds is None else bounds
         L = self.L if L is None else L
         W = self.W if W is None else W
-        local_objs = nutils.objects2frame(obj_center.cpu().numpy()[np.newaxis, :, :],
-                                          center.cpu().numpy())[0]
+        local_objs = nutils.objects2frame(
+            obj_center.cpu().numpy()[np.newaxis, :, :], center.cpu().numpy()
+        )[0]
         # [low_l, low_w, high_l, high_w]
         local_objs[:, 0] -= bounds[0]
         local_objs[:, 1] -= bounds[1]
@@ -246,8 +261,8 @@ class NuScenesMapEnv(object):
         pix2m_W = W / float(bounds[3] - bounds[1])
         local_objs[:, 0] *= pix2m_L
         local_objs[:, 1] *= pix2m_W
-        pix_objl = obj_lw[:, 0]*pix2m_L
-        pix_objw = obj_lw[:, 1]*pix2m_W
+        pix_objl = obj_lw[:, 0] * pix2m_L
+        pix_objw = obj_lw[:, 1] * pix2m_W
         pix_objlw = torch.stack([pix_objl, pix_objw], dim=1)
         local_objs = torch.from_numpy(local_objs)
 
