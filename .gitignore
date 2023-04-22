@@ -3,6 +3,7 @@ strive_env
 out
 wandb
 data/nuscenes
+records
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

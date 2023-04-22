@@ -28,6 +28,7 @@ def gen_scene(nusc, idx, args):
 
 
 def run(args):
+    print("Loading Data...")
     nusc = NuScenes(
         version=args.dataset,
         dataroot="data/nuscenes/trainval/",
@@ -38,7 +39,7 @@ def run(args):
         p = Process(target=gen_scene, args=(nusc, i, args))
         plist.append(p)
 
-    print("Generating data...")
+    print("Generating Data...")
     for t in plist:
         t.start()
     for t in plist:
