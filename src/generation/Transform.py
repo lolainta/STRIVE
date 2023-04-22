@@ -1,5 +1,5 @@
-from Rotation import Rotation
-from Translation import Translation
+from generation.Rotation import Rotation
+from generation.Translation import Translation
 from numpy import cos, sin, deg2rad, pi, sqrt
 
 
@@ -12,15 +12,17 @@ class Transform:
                 assert False, "Transform construct failed "
         elif len(args) == 2:
             if isinstance(args[0], Translation):
-                self.translation = args[0]
+                self.translation: Translation = args[0]
             else:
-                self.translation = Translation(args[0])
+                self.translation: Translation = Translation(args[0])
             if isinstance(args[1], Rotation):
-                self.rotation = args[1]
+                self.rotation: Rotation = args[1]
             else:
-                self.rotation = Rotation(args[1])
+                self.rotation: Rotation = Rotation(args[1])
         else:
             assert False, "Transform construct failed "
+        self.translation: Translation
+        self.rotation: Rotation
 
     def __sub__(self, o):
         ret = Transform(self.translation - o.translation, self.rotation - o.rotation)

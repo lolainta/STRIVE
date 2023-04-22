@@ -1,8 +1,8 @@
 import numpy as np
 from nuscenes.nuscenes import NuScenes
-from src.Drawer import Drawer
-from quintic import quintic_polynomials_planner
-from NuscData import NuscGenerator
+from generation.Drawer import Drawer
+from generation.quintic import quintic_polynomials_planner
+from generation.NuscData import NuscGenerator
 
 
 def main():

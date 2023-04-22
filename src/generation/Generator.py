@@ -1,9 +1,9 @@
 from copy import deepcopy
-from NuscData import NuscData
-from Dataset import Dataset
-from Datalist import Datalist
-from Data import Data
-from quintic import quintic_polynomials_planner
+from generation.NuscData import NuscData
+from generation.Dataset import ColDataset
+from generation.Datalist import Datalist
+from generation.Data import Data
+from generation.quintic import quintic_polynomials_planner
 
 
 class Generator:
@@ -17,10 +17,10 @@ class Generator:
         ret.rotate(20, org=d.bound[0])
         return ret
 
-    def gen_by_inst(self, inst: dict) -> Dataset:
+    def gen_by_inst(self, inst: dict) -> ColDataset:
         anns = self.nuscData.get_annotations(inst)
 
-        dataset: Dataset = Dataset(self.nuscData.scene, inst)
+        dataset: ColDataset = ColDataset(self.nuscData.scene, inst)
         ego_data: Datalist = self.nuscData.get_ego_data()
         npc_data: Datalist = self.nuscData.get_npc_data(anns)
 

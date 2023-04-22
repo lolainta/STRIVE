@@ -1,5 +1,5 @@
 from numpy import cos, sin, pi
-from Translation import Translation
+from generation.Translation import Translation
 
 
 class Data:

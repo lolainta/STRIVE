@@ -2,7 +2,7 @@ import argparse
 import os
 import pickle
 import random
-from Drawer import Drawer
+from generation.Drawer import Drawer
 
 
 def gen_random() -> str:

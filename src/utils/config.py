@@ -65,7 +65,7 @@ def add_base_args(parser):
         "--data_version",
         type=str,
         default="trainval",
-        choices=["trainval", "mini"],
+        choices=["trainval", "mini", "hcis"],
         help="Whether to use full nuscenes or mini.",
     )
     parser.add_argument(

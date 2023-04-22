@@ -1,9 +1,9 @@
-from Data import Data
-from Datalist import Datalist
+from generation.Data import Data
+from generation.Datalist import Datalist
 from collections import defaultdict
 
 
-class Dataset:
+class ColDataset:
     def __init__(self, scene: str, inst: str) -> None:
         self.scene = scene
         self.inst = inst

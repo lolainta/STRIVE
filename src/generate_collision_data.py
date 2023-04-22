@@ -2,8 +2,8 @@ import argparse
 import os
 import pickle
 from nuscenes.nuscenes import NuScenes
-from Generator import Generator
-from NuscData import NuscData
+from generation.Generator import Generator
+from generation.NuscData import NuscData
 from multiprocessing import Process
 
 
@@ -18,7 +18,7 @@ def gen_scene(nusc, idx, args):
     if args.verbose:
         print(f"scene[{idx}]: {osz}-{fsz}={sz} data generated")
     if args.record and sz > 0:
-        scene_dir = os.path.join(args.record_path, dataCluster[0].scene["token"])
+        scene_dir = os.path.join(args.record_path, dataCluster[0].scene["name"])
         os.makedirs(scene_dir, exist_ok=True)
         for dataset in dataCluster:
             with open(
@@ -31,7 +31,7 @@ def run(args):
     print("Loading Data...")
     nusc = NuScenes(
         version=args.dataset,
-        dataroot="data/nuscenes/trainval/",
+        dataroot=f"data/nuscenes/{args.dataset.split('-')[-1]}",
         verbose=args.verbose,
     )
     plist = list()
@@ -56,7 +56,7 @@ def main():
         "-d",
         "--dataset",
         choices=["v1.0-mini", "v1.0-trainval"],
-        default="v1.0-trainval",
+        default="v1.0-mini",
         help="Nuscene dataset version",
     )
     parser.add_argument(

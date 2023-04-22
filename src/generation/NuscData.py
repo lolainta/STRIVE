@@ -1,7 +1,7 @@
 from nuscenes.nuscenes import NuScenes
-from Data import Data
-from Datalist import Datalist
-from Transform import Transform
+from generation.Data import Data
+from generation.Datalist import Datalist
+from generation.Transform import Transform
 
 
 class NuscData:

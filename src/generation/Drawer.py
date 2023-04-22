@@ -1,9 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
-from Data import Data
-from Dataset import Dataset
-from Translation import Translation
+from generation.Data import Data
+from generation.Dataset import ColDataset
+from generation.Translation import Translation
 
 
 class Drawer:
@@ -45,7 +45,7 @@ class Drawer:
         self.plot_box(bnd, col=col)
         self.plot_arrow(x, y, yaw, fc=col)
 
-    def plot_dataset(self, ds: Dataset, atk=False) -> None:
+    def plot_dataset(self, ds: ColDataset, atk=False) -> None:
         print(
             f'Drawing dataset: scene={ds.scene["token"]} inst={ds.inst["token"]}',
             file=sys.stderr,

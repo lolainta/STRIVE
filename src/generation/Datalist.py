@@ -1,4 +1,5 @@
-from Data import Data
+from generation.Data import Data
+from numpy import cos, sin
 
 
 class Datalist:
@@ -40,3 +41,17 @@ class Datalist:
         self.datalist[-1].set_accelerate(dvdt[-1])
         for i in range(1, len(self.datalist) - 1):
             self.datalist[i].set_accelerate((dvdt[i - 1] + dvdt[i]) / 2)
+
+    def serialize(self) -> list:
+        ret = list()
+        for data in self.datalist:
+            cur = dict()
+            cur["x"] = data.transform.translation.x
+            cur["y"] = data.transform.translation.y
+            cur["h"] = data.transform.rotation.yaw
+            cur["hcos"] = cos(cur["h"])
+            cur["hsin"] = sin(cur["h"])
+            cur["t"] = data.timestamp
+            cur["samp_tok"] = "XXX"
+            ret.append(cur)
+        return ret
