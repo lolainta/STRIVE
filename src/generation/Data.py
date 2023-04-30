@@ -1,4 +1,4 @@
-from numpy import cos, sin, pi
+from numpy import cos, sin, pi, deg2rad
 from generation.Translation import Translation
 
 
@@ -63,10 +63,11 @@ class Data:
         self.transform.move(self.width, -pi / 2)
         self.bound = self.get_bound()
 
-    def forward(self, dis: float) -> None:
-        self.transform.move(dis, 0)
+    def move(self, dis: float, deg: float) -> None:
+        rad = deg2rad(deg)
+        self.transform.move(dis, rad)
         self.bound = self.get_bound()
 
     def rotate(self, deg: float, org=None) -> None:
-        self.transform.rotate(deg)
+        self.transform.rotate(deg, org)
         self.bound = self.get_bound()

@@ -7,6 +7,7 @@ from generation.Transform import Transform
 class NuscData:
     def __init__(self, nusc: NuScenes, scene: int) -> None:
         self.nusc = nusc
+        self.scene_id = scene
         self.scene = self.nusc.scene[scene]
         self.samples: list = self.get_samples()
         self.instances: set = self.get_instances()

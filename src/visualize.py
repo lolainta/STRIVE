@@ -5,12 +5,12 @@ import random
 from generation.Drawer import Drawer
 
 
-def gen_random() -> str:
-    scenes = os.listdir("./records")
+def gen_random(folder: str) -> str:
+    scenes = os.listdir(folder)
     scene = random.sample(scenes, 1)[0]
-    insts = os.listdir(os.path.join("./records", scene))
+    insts = os.listdir(os.path.join(folder, scene))
     inst = random.sample(insts, 1)[0]
-    record = os.path.join("./records", scene, inst)
+    record = os.path.join(folder, scene, inst)
     return record
 
 
@@ -32,7 +32,8 @@ def main():
     parser.add_argument(
         "-f",
         "--file",
-        default=gen_random(),
+        required=True,
+        default=None,
         help="Dataset folder",
     )
     parser.add_argument("--one", action="store_true")
@@ -42,7 +43,7 @@ def main():
         show(args.file)
     else:
         while True:
-            show(gen_random())
+            show(gen_random(args.file))
 
 
 if __name__ == "__main__":

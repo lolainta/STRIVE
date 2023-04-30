@@ -1,6 +1,6 @@
 from generation.Rotation import Rotation
 from generation.Translation import Translation
-from numpy import cos, sin, deg2rad, pi, sqrt
+from numpy import cos, sin, deg2rad, pi
 
 
 class Transform:
