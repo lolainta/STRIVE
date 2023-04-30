@@ -14,6 +14,10 @@ class NuscData:
     def get(self, table: str, token: str) -> dict:
         return self.nusc.get(table, token)
 
+    def get_map(self) -> str:
+        log = self.nusc.get("log", self.scene["log_token"])
+        return log["location"]
+
     def get_samples(self) -> list:
         samples = [self.nusc.get("sample", self.scene["first_sample_token"])]
         while samples[-1]["next"]:

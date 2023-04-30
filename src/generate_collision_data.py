@@ -2,6 +2,7 @@ import argparse
 import os
 import pickle
 from nuscenes.nuscenes import NuScenes
+from nuscenes.map_expansion.map_api import NuScenesMap
 from generation.Generator import Generator
 from generation.NuscData import NuscData
 from multiprocessing import Process
@@ -9,9 +10,21 @@ from multiprocessing import Process
 
 def gen_scene(nusc, idx, args):
     nuscData: NuscData = NuscData(nusc, idx)
+    mapName = nuscData.get_map()
+    map = NuScenesMap(
+        dataroot=f"data/nuscenes/{args.dataset.split('-')[-1]}",
+        map_name=mapName,
+    )
     gen: Generator = Generator(nuscData)
     dataCluster = gen.gen_all()
-    validData = [ds for ds in dataCluster if ds.filter() == True]
+    import time
+
+    t1 = time.time()
+    validData = gen.filter_by_vel_acc(dataCluster)
+    t2 = time.time()
+    validData = gen.filter_by_map(dataCluster, map)
+    t3 = time.time()
+    # print(t3 - t2, t2 - t1, t3 - t1)
     osz = len(dataCluster)
     sz = len(validData)
     fsz = osz - sz
@@ -44,10 +57,12 @@ def run(args):
         t.start()
     for t in plist:
         t.join()
+    print("Data Generated")
     print("======")
 
 
 def main():
+    os.nice(21)
     parser = argparse.ArgumentParser(
         prog="python3 src/generation/main.py",
         description="Generate data from given nuscene dataset and collision type",

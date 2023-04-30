@@ -1,6 +1,7 @@
 from generation.Data import Data
 from generation.Datalist import Datalist
 from collections import defaultdict
+from nuscenes.map_expansion.map_api import NuScenesMap
 
 
 class ColDataset:
@@ -48,7 +49,7 @@ class ColDataset:
         ret = sorted(ret)
         self.timelist = ret
 
-    def filter(self) -> bool:
+    def filter_by_vel_acc(self) -> bool:
         self.atk.compile()
         maxv = max([t.velocity for t in self.atk])
         maxa = max([t.accelerate for t in self.atk])
@@ -56,3 +57,12 @@ class ColDataset:
             return True
         # print('filtered', self.scene['token'], self.inst['token'], maxv, maxa)
         return False
+
+    def filter_by_map(self, map: NuScenesMap) -> bool:
+        for d in self.atk:
+            cord = d.transform.translation
+            x, y = cord.x, cord.y
+            ls = map.layers_on_point(x, y)
+            if ls["drivable_area"] == "":
+                return False
+        return True

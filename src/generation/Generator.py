@@ -4,6 +4,7 @@ from generation.Dataset import ColDataset
 from generation.Datalist import Datalist
 from generation.Data import Data
 from generation.quintic import quintic_polynomials_planner
+from nuscenes.map_expansion.map_api import NuScenesMap
 
 
 class Generator:
@@ -53,5 +54,8 @@ class Generator:
             ret.append(ds)
         return ret
 
-    def filter(self, dataCluster: list) -> list:
-        return [ds for ds in dataCluster if ds.filter()]
+    def filter_by_vel_acc(self, dataCluster: list) -> list:
+        return [ds for ds in dataCluster if ds.filter_by_vel_acc()]
+
+    def filter_by_map(self, dataCluster: list, nuscMap: NuScenesMap) -> list:
+        return [ds for ds in dataCluster if ds.filter_by_map(nuscMap)]
