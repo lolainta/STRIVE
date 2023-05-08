@@ -476,13 +476,17 @@ class CollisionDataset(Dataset):
         dataCluster = list()
         scene_tks = [sc["name"] for sc in self.nusc.scene if sc["name"] in self.scenes]
         for scene_tk in scene_tks:
-            sdir = os.path.join(self.col_data_path, self.version, scene_tk)
-            insts = os.listdir(sdir)
-            for inst in insts:
-                path = os.path.join(sdir, inst)
-                with open(path, "rb") as f:
-                    dataset = pickle.load(f)
-                    dataCluster.append(dataset)
+            folder = os.path.join(self.col_data_path,self.version)
+            for cond in os.listdir(folder):
+                sdir = os.path.join(folder,cond, scene_tk)
+                if not os.path.exists(sdir):
+                    continue
+                insts = os.listdir(sdir)
+                for inst in insts:
+                    path = os.path.join(sdir, inst)
+                    with open(path, "rb") as f:
+                        dataset = pickle.load(f)
+                        dataCluster.append(dataset)
         return dataCluster
 
     def compile_data(self):

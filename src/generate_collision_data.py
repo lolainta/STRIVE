@@ -32,7 +32,7 @@ def gen_and_record(gen: Generator, type: Condition, nuscMap: NuScenesMap, args):
             dataCluster[0].scene["name"],
         )
         os.makedirs(scene_dir, exist_ok=True)
-        for dataset in dataCluster:
+        for dataset in validData:
             with open(
                 os.path.join(scene_dir, f'{dataset.inst["token"]}.pickle'), "wb"
             ) as f:
