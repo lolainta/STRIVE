@@ -2,18 +2,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sys
 from generation.Data import Data
+from generation.NuscData import NuscData
 from generation.Dataset import ColDataset
 from generation.Translation import Translation
+from nuscenes.map_expansion.map_api import NuScenesMap
+import os
+import warnings
 
 
 class Drawer:
-    def __init__(self, delay=1e-12) -> None:
-        # plt.gcf().canvas.mpl_connect('key_release_event',
-        #                              lambda event: [exit(0) if event.key == 'escape' else None])
-        self.fig, self.ax = plt.subplots(figsize=(20, 20))
+    def __init__(self, nuscData: NuscData, nuscMap: NuScenesMap, delay=1e-12) -> None:
         self.delay = delay
-        self.ax.set_xticks(range(1720, 1723))
-        self.ax.set_yticks(range(2668, 2672))
+        self.nusc = nuscData.nusc
+        self.nuscData = nuscData
+        self.nuscMap = nuscMap
 
     def plot_arrow(self, x, y, yaw, length=2.0, width=1, fc="r", ec="k") -> None:
         self.ax.arrow(
@@ -29,9 +31,7 @@ class Drawer:
         self.ax.plot(x, y)
 
     def plot_seg(self, p1: Translation, p2: Translation, col="green") -> None:
-        self.ax.plot([p1.x, p2.x], [p1.y, p2.y], "o--", color=col)
-        self.ax.scatter(p1.x, p1.y, c=col)
-        self.ax.scatter(p2.x, p2.y, c=col)
+        self.ax.plot([p1.x, p2.x], [p1.y, p2.y], "-", color=col)
 
     def plot_box(self, bound, col="green") -> None:
         for i in range(4):
@@ -45,29 +45,36 @@ class Drawer:
         self.plot_box(bnd, col=col)
         self.plot_arrow(x, y, yaw, fc=col)
 
-    def plot_dataset(self, ds: ColDataset, atk=False) -> None:
+    def plot_dataset(self, ds: ColDataset, out_dir: str, path: str) -> None:
         print(
-            f'Drawing dataset: scene={ds.scene["token"]} inst={ds.inst["token"]}',
+            f'Drawing dataset: {ds.scene["name"]} inst={ds.inst["token"]}',
             file=sys.stderr,
         )
-        for v in ds.time2data.values():
+        path = path.replace("/", "_")[12:-7]
+        out = os.path.join(out_dir, path)
+        os.makedirs(out, exist_ok=True)
+        for idx, cur_time in enumerate(self.nuscData.times):
             plt.cla()
-            if "ego" in v:
-                self.plot_car(v["ego"], col="blue")
-            self.plot_car(ds.ego[0], col="blue")
-            self.plot_car(ds.ego[-1], col="blue")
-            if atk:
-                self.plot_car(ds.atk[0])
-                self.plot_car(ds.atk[-1])
-                if "atk" in v:
-                    self.plot_car(v["atk"])
-            else:
-                self.plot_car(ds.npc[0])
-                self.plot_car(ds.npc[-1])
-                if "npc" in v:
-                    self.plot_car(v["npc"])
-            if self.delay:
-                plt.pause(self.delay)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore")
+                self.fig, self.ax = self.nuscMap.render_layers(["drivable_area"])
+            center = ds.ego.datalist[idx].transform.translation
+            self.ax.set_xlim(center.x - 100, center.x + 100)
+            self.ax.set_ylim(center.y - 100, center.y + 100)
+            assert ds.ego.datalist[idx].timestamp == cur_time
+            self.plot_car(ds.ego.datalist[idx], col="blue")
+            for npc in ds.npcs:
+                for npc_data in npc.datalist:
+                    if npc_data.timestamp == cur_time:
+                        self.plot_car(npc_data, col="green")
+            for atk_data in ds.atk.datalist:
+                if atk_data.timestamp == cur_time:
+                    self.plot_car(atk_data, col="red")
+            frame = os.path.join(out, f"{idx:02d}.png")
+            plt.savefig(frame)
+        os.system(
+            f"ffmpeg -r 2 -i {os.path.join(out,'%02d.png')} -y {out}.mp4 2>/dev/null > /dev/null"
+        )
 
     def show(self) -> None:
         plt.show()

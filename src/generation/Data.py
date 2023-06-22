@@ -1,11 +1,12 @@
 from numpy import cos, sin, pi, deg2rad
 from generation.Translation import Translation
+from generation.Transform import Transform
 
 
 class Data:
     def __init__(self, ts, trans) -> None:
         self.timestamp = ts
-        self.transform = trans
+        self.transform: Transform = trans
         self.width = 2
         self.length = 4
         self.bound = self.get_bound()

@@ -10,7 +10,8 @@ class NuscData:
         self.scene_id = scene
         self.scene = self.nusc.scene[scene]
         self.samples: list = self.get_samples()
-        self.instances: set = self.get_instances()
+        self.instances: list = self.get_instances()
+        self.times = self.get_time()
 
     def get(self, table: str, token: str) -> dict:
         return self.nusc.get(table, token)
@@ -26,7 +27,7 @@ class NuscData:
             samples.append(nxt)
         return samples
 
-    def get_instances(self) -> set:
+    def get_instances(self) -> list:
         ret = set()
         for inst in self.nusc.instance:
             ann = self.nusc.get("sample_annotation", inst["first_annotation_token"])
@@ -35,7 +36,7 @@ class NuscData:
             if sample["scene_token"] == self.scene["token"]:
                 if self.check(inst):
                     ret.add(inst["token"])
-        return ret
+        return list(ret)
 
     def check(self, inst: dict) -> bool:
         if inst["first_annotation_token"] == inst["last_annotation_token"]:
@@ -67,7 +68,6 @@ class NuscData:
                     sample["timestamp"], Transform(ann["translation"], ann["rotation"])
                 )
             )
-        ret.compile()
         return ret
 
     def get_ego_data(self) -> Datalist:
@@ -83,4 +83,10 @@ class NuscData:
                     Transform(ego_pos["translation"], ego_pos["rotation"]),
                 )
             )
+        return ret
+
+    def get_time(self) -> list:
+        ret = list()
+        for sample in self.samples:
+            ret.append(sample["timestamp"])
         return ret

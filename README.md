@@ -34,6 +34,16 @@ We also provide the generated scenarios from Section 5.1/5.2 of the paper where 
 
 Note these models and scenarios were derived from the nuScenes dataset and are thus separately licensed under CC-BY-NC-SA-4.0.
 
+## Generating Collision Dataset
+```
+python3 src/generate_collision_data.py -v --record data/hcis/0622/mini -d v1.0-mini
+```
+
+## Visualize Generated Collision Dataset
+```
+python3 src/visualize.py -o data/hcis/0622/mini/viz/ -d data/hcis/0622/mini
+```
+
 ## Training and Testing Traffic Model
 
 ### Training

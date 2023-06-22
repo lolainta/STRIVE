@@ -1,7 +1,7 @@
 import argparse
 import os
 import pickle
-from multiprocessing import Process
+from multiprocessing import Pool
 from nuscenes.nuscenes import NuScenes
 from nuscenes.map_expansion.map_api import NuScenesMap
 from generation.Generator import Generator, Condition
@@ -9,13 +9,13 @@ from generation.NuscData import NuscData
 import time
 
 
-def gen_and_record(gen: Generator, type: Condition, nuscMap: NuScenesMap, args):
+def gen_by_cond(gen: Generator, type: Condition, nuscMap: NuScenesMap, args):
     idx = gen.nuscData.scene_id
     dataCluster = gen.gen_all(type)
     t1 = time.time()
     validData = gen.filter_by_vel_acc(dataCluster)
     t2 = time.time()
-    validData = gen.filter_by_map(dataCluster, nuscMap)
+    # validData = gen.filter_by_map(dataCluster, nuscMap)
     t3 = time.time()
     # print(t3 - t2, t2 - t1, t3 - t1)
     osz = len(dataCluster)
@@ -23,19 +23,17 @@ def gen_and_record(gen: Generator, type: Condition, nuscMap: NuScenesMap, args):
     fsz = osz - sz
     if args.verbose:
         print(f"scene[{idx}]/{type.name}\t{osz}-{fsz}={sz} data generated")
-
-    if args.record and sz > 0:
+    if args.record != "" and sz > 0:
         scene_dir = os.path.join(
-            args.record_path,
+            args.record,
             args.dataset.split("-")[-1],
             type.name,
             dataCluster[0].scene["name"],
         )
         os.makedirs(scene_dir, exist_ok=True)
-        for dataset in validData:
-            with open(
-                os.path.join(scene_dir, f'{dataset.inst["token"]}.pickle'), "wb"
-            ) as f:
+        print(f"Recorded at {scene_dir}")
+        for idx, dataset in enumerate(validData):
+            with open(os.path.join(scene_dir, f"{idx}.pickle"), "wb") as f:
                 pickle.dump(dataset, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
@@ -47,14 +45,8 @@ def gen_scene(nusc, idx, args):
         map_name=mapName,
     )
     gen: Generator = Generator(nuscData)
-    plist = list()
     for cond in Condition:
-        p = Process(target=gen_and_record, args=(gen, cond, nuscMap, args))
-        plist.append(p)
-    for p in plist:
-        p.start()
-    for p in plist:
-        p.join()
+        gen_by_cond(gen, cond, nuscMap, args)
 
 
 def run(args):
@@ -64,8 +56,11 @@ def run(args):
         dataroot=f"data/nuscenes/{args.dataset.split('-')[-1]}",
         verbose=args.verbose,
     )
+    params = list()
     for i in range(len(nusc.scene)):
-        gen_scene(nusc, i, args)
+        params.append((nusc, i, args))
+    with Pool(8) as p:
+        p.starmap(gen_scene, params)
     print("======")
 
 
@@ -82,12 +77,9 @@ def main():
         help="Nuscene dataset version",
     )
     parser.add_argument(
-        "--record", action="store_true", help="Whether to record to record path or not)"
-    )
-    parser.add_argument(
-        "--record-path",
-        default="./records",
-        help="The path to store the generated data (create if not exists)",
+        "--record",
+        default="",
+        help="Specify the path to store the generated data (create if not exists)",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Show log")
     args = parser.parse_args()
