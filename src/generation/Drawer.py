@@ -73,7 +73,7 @@ class Drawer:
             frame = os.path.join(out, f"{idx:02d}.png")
             plt.savefig(frame)
         os.system(
-            f"ffmpeg -r 2 -i {os.path.join(out,'%02d.png')} -y {out}.mp4 2>/dev/null > /dev/null"
+            f"ffmpeg -r 2 -pix_fmt yuv420p -i {os.path.join(out,'%02d.png')} -y {out}.mp4 > /dev/null 2>&1"
         )
 
     def show(self) -> None:

@@ -19,7 +19,7 @@ def show(path: str, nuscs, args):
             plt.plot_dataset(dataset, args.out, path)
             plt.close()
             found = True
-            print(f"Saved: {path} {dataset.instance['name']}", flush=True)
+            print(f"Saved: {path} {dataset.inst['token']}", flush=True)
     if not found:
         assert False, f"Scene {dataset.scene['name']} not found"
 
@@ -57,7 +57,6 @@ def main():
             map_name=mapName,
         )
         nuscs.append((nuscData, nuscMap))
-    print(os.path.join(args.dir, "**.pickle"))
     pickles = glob.glob(f"./{args.dir}/**/*.pickle", recursive=True)
     params = list()
     for p in pickles:

@@ -1,12 +1,10 @@
-from generation.Data import Data
 from generation.Datalist import Datalist
 from generation.Condition import Condition
-from collections import defaultdict
 from nuscenes.map_expansion.map_api import NuScenesMap
 
 
 class ColDataset:
-    def __init__(self, scene: str, inst: str, type: Condition) -> None:
+    def __init__(self, scene: str, inst: dict, type: Condition) -> None:
         self.scene = scene
         self.inst = inst
         self.ego: Datalist = list()
@@ -22,31 +20,6 @@ class ColDataset:
 
     def set_atk(self, atk: Datalist) -> None:
         self.atk: Datalist = atk
-
-    # def compile(self) -> None:
-    #     self.get_timelist()
-    #     self.gen_time2data()
-    #     # print(self.time2data.keys())
-
-    # def gen_time2data(self) -> None:
-    #     ret = defaultdict(dict)
-    #     for d in self.ego:
-    #         ret[d.timestamp]["ego"] = d
-    #     for d in self.npc:
-    #         ret[d.timestamp]["npc"] = d
-    #     for d in self.atk:
-    #         ret[d.timestamp]["atk"] = d
-    #     self.time2data: dict[int, dict[str, Data]] = ret
-
-    # def get_timelist(self) -> None:
-    #     ret = set()
-    #     for d in self.ego:
-    #         ret.add(d.timestamp)
-    #     for d in self.npc:
-    #         ret.add(d.timestamp)
-    #     ret = list(ret)
-    #     ret = sorted(ret)
-    #     self.timelist = ret
 
     def filter_by_vel_acc(self) -> bool:
         self.atk.compile()
