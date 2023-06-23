@@ -15,7 +15,7 @@ def gen_by_cond(gen: Generator, type: Condition, nuscMap: NuScenesMap, args):
     t1 = time.time()
     validData = gen.filter_by_vel_acc(dataCluster)
     t2 = time.time()
-    # validData = gen.filter_by_map(dataCluster, nuscMap)
+    validData = gen.filter_by_map(dataCluster, nuscMap)
     t3 = time.time()
     # print(t3 - t2, t2 - t1, t3 - t1)
     osz = len(dataCluster)

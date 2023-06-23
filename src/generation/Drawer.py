@@ -45,13 +45,11 @@ class Drawer:
         self.plot_box(bnd, col=col)
         self.plot_arrow(x, y, yaw, fc=col)
 
-    def plot_dataset(self, ds: ColDataset, out_dir: str, path: str) -> None:
+    def plot_dataset(self, ds: ColDataset, out: str) -> None:
         print(
             f'Drawing dataset: {ds.scene["name"]} inst={ds.inst["token"]}',
             file=sys.stderr,
         )
-        path = path.replace("/", "_")[12:-7]
-        out = os.path.join(out_dir, path)
         os.makedirs(out, exist_ok=True)
         for idx, cur_time in enumerate(self.nuscData.times):
             plt.cla()

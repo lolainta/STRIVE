@@ -15,10 +15,14 @@ def show(path: str, nuscs, args):
     found = False
     for nuscData, nuscMap in nuscs:
         if nuscData.scene["name"] == dataset.scene["name"]:
-            plt = Drawer(nuscData, nuscMap)
-            plt.plot_dataset(dataset, args.out, path)
-            plt.close()
             found = True
+            out = os.path.join(args.out, path.replace("/", "_")[12:-7])
+            if os.path.exists(f"{out}.mp4"):
+                print(f"Skip: {path}", flush=True)
+                continue
+            plt = Drawer(nuscData, nuscMap)
+            plt.plot_dataset(dataset, out)
+            plt.close()
             print(f"Saved: {path} {dataset.inst['token']}", flush=True)
     if not found:
         assert False, f"Scene {dataset.scene['name']} not found"
@@ -58,6 +62,7 @@ def main():
         )
         nuscs.append((nuscData, nuscMap))
     pickles = glob.glob(f"./{args.dir}/**/*.pickle", recursive=True)
+    pickles.sort()
     params = list()
     for p in pickles:
         params.append((p, nuscs, args))
