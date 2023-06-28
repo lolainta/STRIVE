@@ -11,11 +11,11 @@ from tqdm import trange
 
 def gen_by_cond(gen: Generator, type: Condition, nuscMap: NuScenesMap, args):
     scene_dir = os.path.join(
-            args.record,
-            args.dataset.split("-")[-1],
-            type.name,
-            gen.nuscData.scene["name"],
-        )
+        args.record,
+        args.dataset.split("-")[-1],
+        type.name,
+        gen.nuscData.scene["name"],
+    )
     if os.path.exists(scene_dir):
         print(f"scene[{gen.nuscData.scene_id}]/{type.name} already exists")
         return
