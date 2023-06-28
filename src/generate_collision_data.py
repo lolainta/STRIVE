@@ -1,52 +1,53 @@
 import argparse
 import os
 import pickle
-from multiprocessing import Pool
+from multiprocessing import Process, Semaphore
 from nuscenes.nuscenes import NuScenes
 from nuscenes.map_expansion.map_api import NuScenesMap
 from generation.Generator import Generator, Condition
 from generation.NuscData import NuscData
-import time
+from tqdm import trange
 
 
 def gen_by_cond(gen: Generator, type: Condition, nuscMap: NuScenesMap, args):
+    scene_dir = os.path.join(
+            args.record,
+            args.dataset.split("-")[-1],
+            type.name,
+            gen.nuscData.scene["name"],
+        )
+    if os.path.exists(scene_dir):
+        print(f"scene[{gen.nuscData.scene_id}]/{type.name} already exists")
+        return
     idx = gen.nuscData.scene_id
     dataCluster = gen.gen_all(type)
-    t1 = time.time()
     validData = gen.filter_by_vel_acc(dataCluster)
-    t2 = time.time()
     validData = gen.filter_by_map(dataCluster, nuscMap)
-    t3 = time.time()
-    # print(t3 - t2, t2 - t1, t3 - t1)
     osz = len(dataCluster)
     sz = len(validData)
     fsz = osz - sz
     if args.verbose:
-        print(f"scene[{idx}]/{type.name}\t{osz}-{fsz}={sz} data generated")
+        print(f"scene[{idx}]/{type.name} {osz}-{fsz}={sz} data generated")
+    os.makedirs(scene_dir, exist_ok=True)
     if args.record != "" and sz > 0:
-        scene_dir = os.path.join(
-            args.record,
-            args.dataset.split("-")[-1],
-            type.name,
-            dataCluster[0].scene["name"],
-        )
-        os.makedirs(scene_dir, exist_ok=True)
-        print(f"Recorded at {scene_dir}")
+        print(f"scene[{idx}]/{type.name} {sz} data recorded")
         for idx, dataset in enumerate(validData):
             with open(os.path.join(scene_dir, f"{idx}.pickle"), "wb") as f:
                 pickle.dump(dataset, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-def gen_scene(nusc, idx, args):
-    nuscData: NuscData = NuscData(nusc, idx)
-    mapName = nuscData.get_map()
-    nuscMap = NuScenesMap(
-        dataroot=f"data/nuscenes/{args.dataset.split('-')[-1]}",
-        map_name=mapName,
-    )
-    gen: Generator = Generator(nuscData)
+def gen_scene(gen: Generator, map: NuScenesMap, args):
     for cond in Condition:
-        gen_by_cond(gen, cond, nuscMap, args)
+        print(f"scene[{gen.nuscData.scene_id}]/{cond.name} Start")
+        gen_by_cond(gen, cond, map, args)
+
+
+def generte(sem: Semaphore, gen: Generator, map: NuScenesMap, args):
+    sem.acquire()
+    print(f"scene[{gen.nuscData.scene_id}] Start")
+    gen_scene(gen, map, args)
+    print(f"scene[{gen.nuscData.scene_id}] Done")
+    sem.release()
 
 
 def run(args):
@@ -56,12 +57,31 @@ def run(args):
         dataroot=f"data/nuscenes/{args.dataset.split('-')[-1]}",
         verbose=args.verbose,
     )
-    params = list()
-    for i in range(len(nusc.scene)):
-        params.append((nusc, i, args))
-    with Pool(8) as p:
-        p.starmap(gen_scene, params)
-    print("======")
+    maps = dict()
+    nuscs = list()
+    for i in trange(len(nusc.scene)):
+        nuscData = NuscData(nusc, i)
+        mapName = nuscData.get_map()
+        if mapName not in maps:
+            nuscMap = NuScenesMap(
+                dataroot=f"data/nuscenes/{args.dataset.split('-')[-1]}",
+                map_name=mapName,
+            )
+            maps[mapName] = nuscMap
+        else:
+            nuscMap = maps[mapName]
+        nuscs.append((nuscData, nuscMap))
+    print("Data Loaded")
+    plist = list()
+    sem = Semaphore(10)
+    for data, map in nuscs:
+        gen: Generator = Generator(data)
+        p = Process(target=generte, args=(sem, gen, map, args))
+        p.start()
+        plist.append(p)
+    for p in plist:
+        p.join()
+    print("Done")
 
 
 def main():

@@ -5,8 +5,8 @@ from generation.NuscData import NuscData
 from nuscenes.nuscenes import NuScenes
 from nuscenes.map_expansion.map_api import NuScenesMap
 import glob, os
-from multiprocessing import Pool
-
+from multiprocessing import Process,Semaphore
+from tqdm import trange
 
 def show(path: str, nuscs, args):
     print(f"Loading {path}")
@@ -27,6 +27,10 @@ def show(path: str, nuscs, args):
     if not found:
         assert False, f"Scene {dataset.scene['name']} not found"
 
+def sem_show(sem:Semaphore, path: str, nuscs, args):
+    sem.acquire()
+    show(path, nuscs, args)
+    sem.release()
 
 def main():
     parser = argparse.ArgumentParser(
@@ -50,25 +54,33 @@ def main():
     args = parser.parse_args()
     print(args)
     nusc_obj = NuScenes(
-        version="v1.0-mini", dataroot="data/nuscenes/mini", verbose=True
+        version="v1.0-trainval", dataroot="data/nuscenes/trainval", verbose=True
     )
+    maps = dict()
     nuscs = list()
-    for i in range(len(nusc_obj.scene)):
+    for i in trange(len(nusc_obj.scene)):
         nuscData = NuscData(nusc_obj, i)
         mapName = nuscData.get_map()
-        nuscMap = NuScenesMap(
-            dataroot="data/nuscenes/mini",
-            map_name=mapName,
-        )
+        if mapName not in maps:
+            nuscMap = NuScenesMap(
+                dataroot="data/nuscenes/trainval",
+                map_name=mapName,
+            )
+            maps[mapName] = nuscMap
+        else:
+            nuscMap = maps[mapName]            
         nuscs.append((nuscData, nuscMap))
     pickles = glob.glob(f"./{args.dir}/**/*.pickle", recursive=True)
     pickles.sort()
-    params = list()
-    for p in pickles:
-        params.append((p, nuscs, args))
-    with Pool(8) as pool:
-        pool.starmap(show, params)
-
+    plist = list()
+    sem = Semaphore(10)
+    for path in pickles:
+        p = Process(target=sem_show, args=(sem, path, nuscs, args))
+        p.start()
+        plist.append(p)
+    for p in plist:
+        p.join()
+    print("Done")
 
 if __name__ == "__main__":
     main()
