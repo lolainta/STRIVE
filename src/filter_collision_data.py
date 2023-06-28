@@ -38,7 +38,10 @@ def parse_cfg():
 
 
 def filter(dataset: ColDataset) -> bool:
-
+    if not dataset.filter_by_vel_acc():
+        return False
+    if not dataset.filter_by_collision():
+        return False
     return True
 
 

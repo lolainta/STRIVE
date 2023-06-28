@@ -1,3 +1,4 @@
+from generation.Data import Data
 from generation.Datalist import Datalist
 from generation.Condition import Condition
 from nuscenes.map_expansion.map_api import NuScenesMap
@@ -29,6 +30,23 @@ class ColDataset:
             return True
         # print('filtered', self.scene['token'], self.inst['token'], maxv, maxa)
         return False
+
+    def filter_by_collision(self) -> bool:
+        blocks = dict()
+        for npc in self.npcs:
+            for d in npc:
+                d: Data
+                if d.timestamp not in blocks:
+                    blocks[d.timestamp] = list()
+                blocks[d.timestamp].append(d.get_poly_bound())
+        for d in self.atk:
+            d: Data
+            if d.timestamp not in blocks:
+                continue
+            for poly in blocks[d.timestamp]:
+                if d.check_collision(poly):
+                    return False
+        return True
 
     def filter_by_map(self, map: NuScenesMap) -> bool:
         for d in self.atk:

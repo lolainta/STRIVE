@@ -1,6 +1,7 @@
 from numpy import cos, sin, pi, deg2rad
 from generation.Translation import Translation
 from generation.Transform import Transform
+from shapely.geometry import Polygon
 
 
 class Data:
@@ -59,6 +60,13 @@ class Data:
             ]
         )
         return [tr, tl, bl, br]
+
+    def check_collision(self, other: Polygon) -> bool:
+        return self.get_poly_bound().intersects(other)
+
+    def get_poly_bound(self) -> Polygon:
+        ret = Polygon([(p.x, p.y) for p in self.bound])
+        return ret
 
     def flip(self, side=0) -> None:
         self.transform.move(self.width, -pi / 2)
