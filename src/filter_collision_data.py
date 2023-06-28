@@ -1,15 +1,9 @@
 import argparse
 import pickle
-from generation.Condition import Condition
 from generation.Dataset import ColDataset
-from generation.Drawer import Drawer
-from generation.NuscData import NuscData
-from nuscenes.nuscenes import NuScenes
-from nuscenes.map_expansion.map_api import NuScenesMap
-import glob, os
+import os
 from multiprocessing import Process, Semaphore
-from tqdm import tqdm
-from time import sleep
+
 
 def parse_cfg():
     parser = argparse.ArgumentParser(
@@ -44,6 +38,7 @@ def parse_cfg():
 
 
 def filter(dataset: ColDataset) -> bool:
+
     return True
 
 
@@ -58,7 +53,7 @@ def sem_filter(sem: Semaphore, scene_dir: str, args):
             out_dir = os.path.join(
                 args.out, args.version, dataset.type.name, dataset.scene["name"]
             )
-            out = os.path.join(out_dir, f'{cur:02d}.pickle')
+            out = os.path.join(out_dir, f"{cur:02d}.pickle")
             os.makedirs(out_dir, exist_ok=True)
             with open(out, "wb") as f:
                 pickle.dump(dataset, f)
@@ -78,11 +73,11 @@ def main():
         if len(files) and all(f[-7:] == (".pickle") for f in files):
             p = Process(target=sem_filter, args=(sem, root, args))
             plist.append(p)
-
     for p in plist:
         p.start()
     for p in plist:
         p.join()
+
 
 if __name__ == "__main__":
     main()
