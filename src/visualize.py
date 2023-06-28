@@ -5,8 +5,9 @@ from generation.NuscData import NuscData
 from nuscenes.nuscenes import NuScenes
 from nuscenes.map_expansion.map_api import NuScenesMap
 import glob, os
-from multiprocessing import Process,Semaphore
+from multiprocessing import Process, Semaphore
 from tqdm import trange
+
 
 def show(path: str, nuscs, args):
     print(f"Loading {path}")
@@ -27,10 +28,12 @@ def show(path: str, nuscs, args):
     if not found:
         assert False, f"Scene {dataset.scene['name']} not found"
 
-def sem_show(sem:Semaphore, path: str, nuscs, args):
+
+def sem_show(sem: Semaphore, path: str, nuscs, args):
     sem.acquire()
     show(path, nuscs, args)
     sem.release()
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -68,10 +71,10 @@ def main():
             )
             maps[mapName] = nuscMap
         else:
-            nuscMap = maps[mapName]            
+            nuscMap = maps[mapName]
         nuscs.append((nuscData, nuscMap))
     pickles = glob.glob(f"./{args.dir}/**/*.pickle", recursive=True)
-    pickles.sort()
+    # pickles.sort()
     plist = list()
     sem = Semaphore(10)
     for path in pickles:
@@ -81,6 +84,7 @@ def main():
     for p in plist:
         p.join()
     print("Done")
+
 
 if __name__ == "__main__":
     main()
