@@ -1,4 +1,5 @@
 from generation.Data import Data
+from generation.Transform import Transform
 from numpy import cos, sin
 
 
@@ -41,6 +42,16 @@ class Datalist:
         self.datalist[-1].set_accelerate(dvdt[-1])
         for i in range(1, len(self.datalist) - 1):
             self.datalist[i].set_accelerate((dvdt[i - 1] + dvdt[i]) / 2)
+
+    def get_max_curvature(self) -> float:
+        max_curvature = 0
+        for i in range(len(self.datalist) - 1):
+            cur = self.datalist[i].transform
+            new = self.datalist[i + 1].transform
+            diff = new - cur
+            curvature = abs(diff.rotation.yaw) / diff.translation.length()
+            max_curvature = max(max_curvature, curvature)
+        return max_curvature
 
     def serialize(self) -> list:
         ret = list()

@@ -56,6 +56,11 @@ class ColDataset:
                     return False
         return True
 
+    def filter_by_curvature(self) -> bool:
+        if self.atk.get_max_curvature() > 5:
+            return False
+        return True
+
     def filter_by_map(self, map: NuScenesMap) -> bool:
         for d in self.atk:
             cord = d.transform.translation

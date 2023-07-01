@@ -5,7 +5,7 @@ from generation.NuscData import NuscData
 from nuscenes.nuscenes import NuScenes
 from nuscenes.map_expansion.map_api import NuScenesMap
 import glob, os
-# from multiprocessing import Process, Semaphore
+from multiprocessing import Process, Semaphore
 from tqdm import trange
 from time import sleep
 
@@ -31,26 +31,26 @@ def show(path: str, nuscs, args):
         assert False, f"Scene {dataset.scene['name']} not found"
 
 
-# def sem_show(sem: Semaphore, path: str, nuscs, args):
-#     sem.acquire()
-#     attempt = 0
-#     while True:
-#         attempt += 1
-#         try:
-#             if attempt > 10:
-#                 assert False, f"Too many attempts: {path}"
-#             show(path, nuscs, args)
-#         except AssertionError as e:
-#             print(f"Error: {path} {e}", flush=True)
-#             break
-#         except Exception as e:
-#             print(f"Error: {path} {e}", flush=True)
-#             sleep(1)
-#             print(f"Retrying: {path}", flush=True)
-#             continue
-#         else:
-#             break
-#     sem.release()
+def sem_show(sem: Semaphore, path: str, nuscs, args):
+    sem.acquire()
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            if attempt > 10:
+                assert False, f"Too many attempts: {path}"
+            show(path, nuscs, args)
+        except AssertionError as e:
+            print(f"Error: {path} {e}", flush=True)
+            break
+        except Exception as e:
+            print(f"Error: {path} {e}", flush=True)
+            sleep(1)
+            print(f"Retrying: {path}", flush=True)
+            continue
+        else:
+            break
+    sem.release()
 
 
 def main():
@@ -72,10 +72,21 @@ def main():
         default=None,
         help="Output folder",
     )
+
+    parser.add_argument(
+        "-v",
+        "--version",
+        required=True,
+        default="mini",
+        choices=["mini", "trainval"],
+        help="Data version",
+    )
     args = parser.parse_args()
     print(args)
     nusc_obj = NuScenes(
-        version="v1.0-trainval", dataroot="data/nuscenes/trainval", verbose=True
+        version=f"v1.0-{args.version}",
+        dataroot=f"data/nuscenes/{args.version}",
+        verbose=True,
     )
     maps = dict()
     nuscs = list()
@@ -84,7 +95,7 @@ def main():
         mapName = nuscData.get_map()
         if mapName not in maps:
             nuscMap = NuScenesMap(
-                dataroot="data/nuscenes/trainval",
+                dataroot=f"data/nuscenes/{args.version}",
                 map_name=mapName,
             )
             maps[mapName] = nuscMap
@@ -98,20 +109,20 @@ def main():
         if not os.path.exists(f"{out}.mp4"):
             parmas.append((path, nuscs, args))
     print(f"Total: {len(parmas)}")
-    for param in parmas:
-        show(*param)
+    # for param in parmas:
+    #     show(*param)
     # pickles.sort()
     # for path in pickles:
     #     show(path, nuscs, args)
-    # plist = list()
-    # sem = Semaphore(1)
-    # for path in pickles:
-    #     p = Process(target=sem_show, args=(sem, path, nuscs, args))
-    #     p.start()
-    #     plist.append(p)
-    # for p in plist:
-    #     p.join()
-    # print("Done")
+    plist = list()
+    sem = Semaphore(10)
+    for path in pickles:
+        p = Process(target=sem_show, args=(sem, path, nuscs, args))
+        p.start()
+        plist.append(p)
+    for p in plist:
+        p.join()
+    print("Done")
 
 
 if __name__ == "__main__":

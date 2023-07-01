@@ -1,5 +1,5 @@
 from pyquaternion import Quaternion
-from numpy import arctan2
+from numpy import arctan2, pi
 
 
 class Rotation:
@@ -15,13 +15,11 @@ class Rotation:
             assert False, "Rotation construct failed "
 
     def __sub__(self, o):
-        # print('rotation __sub__')
         ret = self.yaw - o.yaw
-        # print('rotation __sub__ out')
-        return ret
+        if ret > pi or ret < -pi:
+            ret - 2 * pi - ret
 
-    # def __init__(self, rot: list) -> None:
-    #     self.set_rotation(rot)
+        return ret
 
     def set_rotation(self, rotation: list) -> None:
         self.raw_rotation = rotation

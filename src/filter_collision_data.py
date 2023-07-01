@@ -41,6 +41,8 @@ def filter_data(dataset: ColDataset) -> bool:
         return False
     if not dataset.filter_by_collision():
         return False
+    if not dataset.filter_by_curvature():
+        return False
     return True
 
 
@@ -50,6 +52,7 @@ def filter_dir(scene_dir: str, args):
     for file in os.listdir(scene_dir):
         with open(os.path.join(scene_dir, file), "rb") as f:
             dataset: ColDataset = pickle.load(f)
+        # print(f"Filtering: {dataset.scene['name']} {file}")
         if filter_data(dataset):
             out_dir = os.path.join(
                 args.out, args.version, dataset.type.name, dataset.scene["name"]
