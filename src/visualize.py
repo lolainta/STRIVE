@@ -5,22 +5,24 @@ from generation.NuscData import NuscData
 from nuscenes.nuscenes import NuScenes
 from nuscenes.map_expansion.map_api import NuScenesMap
 import glob, os
-from multiprocessing import Process, Semaphore
+# from multiprocessing import Process, Semaphore
 from tqdm import trange
+from time import sleep
 
 
 def show(path: str, nuscs, args):
-    print(f"Loading {path}")
+    out = os.path.join(args.out, path.replace("/", "_")[12:-7])
+    if os.path.exists(f"{out}.mp4"):
+        print(f"Skip: {path}", flush=True)
+        return
+    print(f"Loading: {path}", flush=True)
     with open(path, "rb") as f:
         dataset = pickle.load(f)
+    f.close()
     found = False
     for nuscData, nuscMap in nuscs:
         if nuscData.scene["name"] == dataset.scene["name"]:
             found = True
-            out = os.path.join(args.out, path.replace("/", "_")[12:-7])
-            if os.path.exists(f"{out}.mp4"):
-                print(f"Skip: {path}", flush=True)
-                continue
             plt = Drawer(nuscData, nuscMap)
             plt.plot_dataset(dataset, out)
             plt.close()
@@ -29,10 +31,26 @@ def show(path: str, nuscs, args):
         assert False, f"Scene {dataset.scene['name']} not found"
 
 
-def sem_show(sem: Semaphore, path: str, nuscs, args):
-    sem.acquire()
-    show(path, nuscs, args)
-    sem.release()
+# def sem_show(sem: Semaphore, path: str, nuscs, args):
+#     sem.acquire()
+#     attempt = 0
+#     while True:
+#         attempt += 1
+#         try:
+#             if attempt > 10:
+#                 assert False, f"Too many attempts: {path}"
+#             show(path, nuscs, args)
+#         except AssertionError as e:
+#             print(f"Error: {path} {e}", flush=True)
+#             break
+#         except Exception as e:
+#             print(f"Error: {path} {e}", flush=True)
+#             sleep(1)
+#             print(f"Retrying: {path}", flush=True)
+#             continue
+#         else:
+#             break
+#     sem.release()
 
 
 def main():
@@ -74,16 +92,26 @@ def main():
             nuscMap = maps[mapName]
         nuscs.append((nuscData, nuscMap))
     pickles = glob.glob(f"./{args.dir}/**/*.pickle", recursive=True)
-    # pickles.sort()
-    plist = list()
-    sem = Semaphore(10)
+    parmas = list()
     for path in pickles:
-        p = Process(target=sem_show, args=(sem, path, nuscs, args))
-        p.start()
-        plist.append(p)
-    for p in plist:
-        p.join()
-    print("Done")
+        out = os.path.join(args.out, path.replace("/", "_")[12:-7])
+        if not os.path.exists(f"{out}.mp4"):
+            parmas.append((path, nuscs, args))
+    print(f"Total: {len(parmas)}")
+    for param in parmas:
+        show(*param)
+    # pickles.sort()
+    # for path in pickles:
+    #     show(path, nuscs, args)
+    # plist = list()
+    # sem = Semaphore(1)
+    # for path in pickles:
+    #     p = Process(target=sem_show, args=(sem, path, nuscs, args))
+    #     p.start()
+    #     plist.append(p)
+    # for p in plist:
+    #     p.join()
+    # print("Done")
 
 
 if __name__ == "__main__":

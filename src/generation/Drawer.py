@@ -53,7 +53,7 @@ class Drawer:
         os.makedirs(out, exist_ok=True)
         for idx, cur_time in enumerate(self.nuscData.times):
             with warnings.catch_warnings():
-                warnings.filterwarnings("ignore")
+                # warnings.filterwarnings("ignore")
                 self.fig, self.ax = self.nuscMap.render_layers(["drivable_area"])
             center = ds.ego.datalist[idx].transform.translation
             self.ax.set_xlim(center.x - 100, center.x + 100)
@@ -69,11 +69,11 @@ class Drawer:
                     self.plot_car(atk_data, col="red")
             frame = os.path.join(out, f"{idx:02d}.png")
             plt.savefig(frame)
-            plt.clf()
             plt.cla()
+            plt.clf()
             plt.close()
         os.system(
-            f"ffmpeg -r 2 -i {os.path.join(out,'%02d.png')} -pix_fmt yuv420p -y {out}.mp4 -v quiet"
+            f"ffmpeg -r 2 -i {os.path.join(out,'%02d.png')} -pix_fmt yuv420p -y {out}.mp4"
         )
 
     def show(self) -> None:

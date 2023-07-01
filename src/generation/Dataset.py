@@ -33,11 +33,19 @@ class ColDataset:
 
     def filter_by_collision(self) -> bool:
         blocks = dict()
+        for d in self.ego:
+            d: Data
+            if d == self.ego[-1]:
+                continue
+            if d.timestamp not in blocks:
+                blocks[d.timestamp] = list()
+            blocks[d.timestamp].append(d.get_poly_bound())
         for npc in self.npcs:
             for d in npc:
                 d: Data
                 if d.timestamp not in blocks:
                     blocks[d.timestamp] = list()
+                    assert d.timestamp == self.ego[-1].timestamp
                 blocks[d.timestamp].append(d.get_poly_bound())
         for d in self.atk:
             d: Data
