@@ -43,27 +43,16 @@ class Generator:
         ret.rotate(180)
         return ret
 
-    def gen_by_inst(self, inst_anns: list, ego_data: Datalist, type: Condition) -> list:
+    def gen_by_inst(self, inst_anns: list, ego_data: Datalist) -> list:
         # dataset: ColDataset = ColDataset(self.nuscData.scene, inst)
         npc_data: Datalist = self.nuscData.get_npc_data(inst_anns)
         npc_data.compile()
         ego_final: Data = ego_data[-1]
-        func = []
-        if type == Condition.LC:
-            func = [self.LC]
-        elif type == Condition.TB:
-            func = [self.LSide, self.RSide]
-        elif type == Condition.RE:
-            func = [self.RearEnd]
-        elif type == Condition.HO:
-            func = [self.HeadOn]
-        else:
-            assert False, "Undefined Condition"
+        funcs = [self.LC, self.LSide, self.RSide, self.RearEnd, self.HeadOn]
 
         ret = list()
-        for function in func:
-            atk_final: Data = function(ego_final)
-
+        for func in funcs:
+            atk_final: Data = func(ego_final)
             res = quintic_polynomials_planner(
                 src=npc_data[0].transform,
                 sv=npc_data[0].velocity,
@@ -73,10 +62,30 @@ class Generator:
                 ga=npc_data[-1].accelerate,
                 timelist=self.nuscData.times,
             )
-            ret.append(res)
+            if func == self.LC:
+                cond = Condition.LC
+            elif func == self.RearEnd:
+                cond = Condition.RE
+            elif func == self.HeadOn:
+                cond = Condition.HO
+            else:
+                if len(npc_data) < 5:
+                    continue
+                eyaw = rad2deg(ego_data[-5].transform.rotation.yaw)
+                nyaw = rad2deg(npc_data[-5].transform.rotation.yaw)
+                diff = abs(eyaw - nyaw)
+                diff = min(diff, 360 - diff)
+                if diff > 150:
+                    cond = Condition.LTAP
+                elif 60 < diff < 120:
+                    cond = Condition.JC
+                else:
+                    cond = None
+            if cond is not None:
+                ret.append((res, cond))
         return ret
 
-    def gen_all(self, cond: Condition) -> list:
+    def gen_all(self) -> list:
         ret = list()
         inst_tks: list = self.nuscData.instances
         inst_anns: list = [
@@ -84,12 +93,11 @@ class Generator:
             for tk in inst_tks
         ]
         assert len(inst_tks) == len(inst_anns)
-        # print(inst_anns[0][0].keys(), 123)
         for anns in inst_anns:
             ego_data: Datalist = self.nuscData.get_ego_data()
             ego_data.compile()
-            res = self.gen_by_inst(anns, ego_data, cond)
-            for r in res:
+            res = self.gen_by_inst(anns, ego_data)
+            for r, cond in res:
                 col = ColDataset(
                     self.nuscData.scene,
                     self.nuscData.get("instance", anns[0]["instance_token"]),
@@ -108,3 +116,9 @@ class Generator:
 
     def filter_by_map(self, dataCluster: list, nuscMap: NuScenesMap) -> list:
         return [ds for ds in dataCluster if ds.filter_by_map(nuscMap)]
+
+    def filter_by_collision(self, dataCluster: list) -> list:
+        return [ds for ds in dataCluster if ds.filter_by_collision()]
+
+    def filter_by_curvature(self, dataCluster: list) -> list:
+        return [ds for ds in dataCluster if ds.filter_by_curvature()]

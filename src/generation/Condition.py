@@ -2,7 +2,8 @@ from enum import Enum, auto
 
 
 class Condition(Enum):
-    LC = 0
-    TB = 1
-    RE = 2
-    HO = 3
+    HO = 0
+    JC = 1
+    LC = 2
+    LTAP = 3
+    RE = 4

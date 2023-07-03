@@ -17,7 +17,7 @@ class Rotation:
     def __sub__(self, o):
         ret = self.yaw - o.yaw
         if ret > pi or ret < -pi:
-            ret - 2 * pi - ret
+            ret = 2 * pi - ret
 
         return ret
 

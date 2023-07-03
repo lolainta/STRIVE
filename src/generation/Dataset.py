@@ -5,13 +5,13 @@ from nuscenes.map_expansion.map_api import NuScenesMap
 
 
 class ColDataset:
-    def __init__(self, scene: str, inst: dict, type: Condition) -> None:
+    def __init__(self, scene: str, inst: dict, cond: Condition) -> None:
         self.scene = scene
         self.inst = inst
         self.ego: Datalist = list()
         self.npcs: Datalist = list()
         self.atk: Datalist = list()
-        self.type: Condition = type
+        self.cond: Condition = cond
 
     def set_ego(self, ego: Datalist) -> None:
         self.ego: Datalist = ego
