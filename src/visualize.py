@@ -10,8 +10,8 @@ from tqdm import trange
 from time import sleep
 
 
-def show(path: str, nuscs, args):
-    out = os.path.join(args.out, path.replace("/", "_")[12:-7])
+def show(path: str, out_dir, nuscs):
+    out = os.path.join(out_dir, path.replace("/", "_")[12:-7])
     if os.path.exists(f"{out}.mp4"):
         print(f"Skip: {path}", flush=True)
         return
@@ -31,25 +31,9 @@ def show(path: str, nuscs, args):
         assert False, f"Scene {dataset.scene['name']} not found"
 
 
-def sem_show(sem: Semaphore, path: str, nuscs, args):
+def sem_show(sem: Semaphore, path: str, out_dir, nuscs):
     sem.acquire()
-    attempt = 0
-    while True:
-        attempt += 1
-        try:
-            if attempt > 10:
-                assert False, f"Too many attempts: {path}"
-            show(path, nuscs, args)
-        except AssertionError as e:
-            print(f"Error: {path} {e}", flush=True)
-            break
-        except Exception as e:
-            print(f"Error: {path} {e}", flush=True)
-            sleep(1)
-            print(f"Retrying: {path}", flush=True)
-            continue
-        else:
-            break
+    show(path, out_dir, nuscs)
     sem.release()
 
 
@@ -66,14 +50,6 @@ def main():
         help="Dataset folder",
     )
     parser.add_argument(
-        "-o",
-        "--out",
-        required=True,
-        default=None,
-        help="Output folder",
-    )
-
-    parser.add_argument(
         "-v",
         "--version",
         required=True,
@@ -88,6 +64,7 @@ def main():
         dataroot=f"data/nuscenes/{args.version}",
         verbose=True,
     )
+    out_dir = os.path.join(args.dir, args.version, "viz")
     maps = dict()
     nuscs = list()
     for i in trange(len(nusc_obj.scene)):
@@ -102,22 +79,22 @@ def main():
         else:
             nuscMap = maps[mapName]
         nuscs.append((nuscData, nuscMap))
-    pickles = glob.glob(f"./{args.dir}/**/*.pickle", recursive=True)
+    pickles = glob.glob(
+        f"./{os.path.join(args.dir,args.version)}/**/*.pickle", recursive=True
+    )
     parmas = list()
     for path in pickles:
-        out = os.path.join(args.out, path.replace("/", "_")[12:-7])
+        out = os.path.join(out_dir, path.replace("/", "_")[12:-7])
         if not os.path.exists(f"{out}.mp4"):
-            parmas.append((path, nuscs, args))
+            parmas.append((path, out_dir, nuscs))
     print(f"Total: {len(parmas)}")
+
     # for param in parmas:
     #     show(*param)
-    # pickles.sort()
-    # for path in pickles:
-    #     show(path, nuscs, args)
-    plist = list()
     sem = Semaphore(10)
-    for path in pickles:
-        p = Process(target=sem_show, args=(sem, path, nuscs, args))
+    plist = list()
+    for param in parmas:
+        p = Process(target=sem_show, args=(sem, *param))
         p.start()
         plist.append(p)
     for p in plist:

@@ -9,40 +9,38 @@ from generation.NuscData import NuscData
 from tqdm import trange
 
 
-def gen_by_cond(gen: Generator, type: Condition, nuscMap: NuScenesMap, args):
-    scene_dir = os.path.join(
-        args.record,
-        args.dataset.split("-")[-1],
-        type.name,
-        gen.nuscData.scene["name"],
-    )
-    if os.path.exists(scene_dir):
-        print(f"scene[{gen.nuscData.scene_id}]/{type.name} already exists")
-        return
-    idx = gen.nuscData.scene_id
-    dataCluster = gen.gen_all(type)
+def gen_scene(gen: Generator, map: NuScenesMap, args):
+    dataCluster = gen.gen_all()
     validData = gen.filter_by_vel_acc(dataCluster)
-    validData = gen.filter_by_map(dataCluster, nuscMap)
+    validData = gen.filter_by_collision(validData)
+    validData = gen.filter_by_curvature(validData)
+    validData = gen.filter_by_map(validData, map)
     osz = len(dataCluster)
     sz = len(validData)
     fsz = osz - sz
     if args.verbose:
-        print(f"scene[{idx}]/{type.name} {osz}-{fsz}={sz} data generated")
-    os.makedirs(scene_dir, exist_ok=True)
+        print(f"scene[{gen.nuscData.scene_id}] {osz}-{fsz}={sz} data generated")
     if args.record != "" and sz > 0:
-        print(f"scene[{idx}]/{type.name} {sz} data recorded")
         for idx, dataset in enumerate(validData):
-            with open(os.path.join(scene_dir, f"{idx}.pickle"), "wb") as f:
+            out_dir = os.path.join(
+                args.record,
+                args.dataset.split("-")[-1],
+                dataset.cond.name,
+                gen.nuscData.scene["name"],
+            )
+            os.makedirs(out_dir, exist_ok=True)
+            with open(
+                os.path.join(
+                    out_dir,
+                    f"{idx}.pickle",
+                ),
+                "wb",
+            ) as f:
                 pickle.dump(dataset, f, protocol=pickle.HIGHEST_PROTOCOL)
+        print(f"scene[{gen.nuscData.scene_id}] {sz} data recorded")
 
 
-def gen_scene(gen: Generator, map: NuScenesMap, args):
-    for cond in Condition:
-        print(f"scene[{gen.nuscData.scene_id}]/{cond.name} Start")
-        gen_by_cond(gen, cond, map, args)
-
-
-def generte(sem: Semaphore, gen: Generator, map: NuScenesMap, args):
+def generate(sem: Semaphore, gen: Generator, map: NuScenesMap, args):
     sem.acquire()
     print(f"scene[{gen.nuscData.scene_id}] Start")
     gen_scene(gen, map, args)
@@ -76,7 +74,7 @@ def run(args):
     sem = Semaphore(10)
     for data, map in nuscs:
         gen: Generator = Generator(data)
-        p = Process(target=generte, args=(sem, gen, map, args))
+        p = Process(target=generate, args=(sem, gen, map, args))
         p.start()
         plist.append(p)
     for p in plist:
