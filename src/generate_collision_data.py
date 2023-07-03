@@ -4,7 +4,7 @@ import pickle
 from multiprocessing import Process, Semaphore
 from nuscenes.nuscenes import NuScenes
 from nuscenes.map_expansion.map_api import NuScenesMap
-from generation.Generator import Generator, Condition
+from generation.Generator import Generator
 from generation.NuscData import NuscData
 from tqdm import trange
 
