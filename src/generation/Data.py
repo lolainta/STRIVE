@@ -68,10 +68,6 @@ class Data:
         ret = Polygon([(p.x, p.y) for p in self.bound])
         return ret
 
-    def flip(self, side=0) -> None:
-        self.transform.move(self.width, -pi / 2)
-        self.bound = self.get_bound()
-
     def move(self, dis: float, deg: float) -> None:
         rad = deg2rad(deg)
         self.transform.move(dis, rad)

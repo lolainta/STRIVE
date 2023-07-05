@@ -28,16 +28,19 @@ def gen_scene(gen: Generator, map: NuScenesMap, args):
                 dataset.cond.name,
                 gen.nuscData.scene["name"],
             )
+            fname = f"{dataset.idx}_{dataset.inst['token']}.pickle"
             os.makedirs(out_dir, exist_ok=True)
             with open(
                 os.path.join(
                     out_dir,
-                    f"{idx}.pickle",
+                    fname,
                 ),
                 "wb",
             ) as f:
                 pickle.dump(dataset, f, protocol=pickle.HIGHEST_PROTOCOL)
-        print(f"scene[{gen.nuscData.scene_id}] {sz} data recorded")
+            dataset.id = idx
+        if args.verbose:
+            print(f"scene[{gen.nuscData.scene_id}] {sz} data recorded")
 
 
 def generate(sem: Semaphore, gen: Generator, map: NuScenesMap, args):

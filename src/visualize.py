@@ -12,9 +12,6 @@ from time import sleep
 
 def show(path: str, out_dir, nuscs):
     out = os.path.join(out_dir, path.replace("/", "_")[12:-7])
-    if os.path.exists(f"{out}.mp4"):
-        print(f"Skip: {path}", flush=True)
-        return
     print(f"Loading: {path}", flush=True)
     with open(path, "rb") as f:
         dataset = pickle.load(f)
@@ -26,7 +23,7 @@ def show(path: str, out_dir, nuscs):
             plt = Drawer(nuscData, nuscMap)
             plt.plot_dataset(dataset, out)
             plt.close()
-            print(f"Saved: {path} {dataset.inst['token']}", flush=True)
+            print(f"Saved: {path}", flush=True)
     if not found:
         assert False, f"Scene {dataset.scene['name']} not found"
 

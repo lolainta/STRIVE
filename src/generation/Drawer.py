@@ -47,7 +47,7 @@ class Drawer:
 
     def plot_dataset(self, ds: ColDataset, out: str) -> None:
         print(
-            f'Drawing dataset: {ds.scene["name"]} inst={ds.inst["token"]}',
+            f"Drawing dataset: {ds.cond.name} {ds.scene['name']} {ds.idx} {ds.inst['token']}",
             file=sys.stderr,
         )
         os.makedirs(out, exist_ok=True)

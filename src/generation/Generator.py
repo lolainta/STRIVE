@@ -7,15 +7,22 @@ from generation.Condition import Condition
 from generation.quintic import quintic_polynomials_planner
 from nuscenes.map_expansion.map_api import NuScenesMap
 from numpy import rad2deg
-
+from random import randint
 
 class Generator:
     def __init__(self, nuscData: NuscData) -> None:
         self.nuscData = nuscData
 
-    def LC(self, d: Data) -> Data:
+    def LLC(self, d: Data) -> Data:
         ret = deepcopy(d)
-        ret.flip()
+        ret.move(ret.width, 90)
+        ret.move(ret.length / 2, 0)
+        ret.rotate(-20, org=d.bound[1])
+        return ret
+
+    def RLC(self, d: Data) -> Data:
+        ret = deepcopy(d)
+        ret.move(ret.width, -90)
         ret.move(ret.length / 2, 0)
         ret.rotate(20, org=d.bound[0])
         return ret
@@ -48,41 +55,60 @@ class Generator:
         npc_data: Datalist = self.nuscData.get_npc_data(inst_anns)
         npc_data.compile()
         ego_final: Data = ego_data[-1]
-        funcs = [self.LC, self.LSide, self.RSide, self.RearEnd, self.HeadOn]
+        ops = {
+            self.LLC: 2,
+            self.RLC: 2,
+            self.LSide: 8,
+            self.RSide: 8,
+            self.RearEnd: 3,
+            self.HeadOn: 3,
+        }
 
         ret = list()
-        for func in funcs:
+        for fid, op in enumerate(ops.items()):
+            func, num = op
             atk_final: Data = func(ego_final)
-            res = quintic_polynomials_planner(
-                src=npc_data[0].transform,
-                sv=npc_data[0].velocity,
-                sa=npc_data[-1].accelerate,
-                dst=atk_final.transform,
-                gv=npc_data[-1].velocity,
-                ga=npc_data[-1].accelerate,
-                timelist=self.nuscData.times,
-            )
-            if func == self.LC:
-                cond = Condition.LC
-            elif func == self.RearEnd:
-                cond = Condition.RE
-            elif func == self.HeadOn:
-                cond = Condition.HO
-            else:
-                if len(npc_data) < 5:
-                    continue
-                eyaw = rad2deg(ego_data[-5].transform.rotation.yaw)
-                nyaw = rad2deg(npc_data[-5].transform.rotation.yaw)
-                diff = abs(eyaw - nyaw)
-                diff = min(diff, 360 - diff)
-                if diff > 150:
-                    cond = Condition.LTAP
-                elif 60 < diff < 120:
-                    cond = Condition.JC
+            for idx in range(num):
+                if func == self.LLC:
+                    atk_final.rotate(randint(0, 10),org=ego_final.bound[1])
+                elif func == self.RLC:
+                    atk_final.rotate(randint(0, 10),org=ego_final.bound[0])
+                elif func in  [self.LSide, self.RSide]:
+                    atk_final.move(randint(-50, 50)/10, 90)
+                elif func == self.RearEnd:
+                    atk_final.move(randint(-20, 20)/10, 90)
+                elif func == self.HeadOn:
+                    atk_final.move(randint(-20, 20)/10, 90)
+                res = quintic_polynomials_planner(
+                    src=npc_data[0].transform,
+                    sv=npc_data[0].velocity,
+                    sa=npc_data[-1].accelerate,
+                    dst=atk_final.transform,
+                    gv=npc_data[-1].velocity,
+                    ga=npc_data[-1].accelerate,
+                    timelist=self.nuscData.times,
+                )
+                if func in [self.LLC, self.RLC]:
+                    cond = Condition.LC
+                elif func == self.RearEnd:
+                    cond = Condition.RE
+                elif func == self.HeadOn:
+                    cond = Condition.HO
                 else:
-                    cond = None
-            if cond is not None:
-                ret.append((res, cond))
+                    if len(npc_data) < 5:
+                        continue
+                    eyaw = rad2deg(ego_data[-5].transform.rotation.yaw)
+                    nyaw = rad2deg(npc_data[-5].transform.rotation.yaw)
+                    diff = abs(eyaw - nyaw)
+                    diff = min(diff, 360 - diff)
+                    if diff > 150:
+                        cond = Condition.LTAP
+                    elif 60 < diff < 120:
+                        cond = Condition.JC
+                    else:
+                        cond = None
+                if cond is not None:
+                    ret.append((f"{fid}-{idx}", res, cond))
         return ret
 
     def gen_all(self) -> list:
@@ -97,7 +123,7 @@ class Generator:
             ego_data: Datalist = self.nuscData.get_ego_data()
             ego_data.compile()
             res = self.gen_by_inst(anns, ego_data)
-            for r, cond in res:
+            for idx, r, cond in res:
                 col = ColDataset(
                     self.nuscData.scene,
                     self.nuscData.get("instance", anns[0]["instance_token"]),
@@ -108,6 +134,7 @@ class Generator:
                 for npcs in inst_anns:
                     if npcs is not anns:
                         col.add_npc(self.nuscData.get_npc_data(npcs))
+                col.idx = idx
                 ret.append(col)
         return ret
 
