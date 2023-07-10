@@ -9,6 +9,7 @@ from nuscenes.map_expansion.map_api import NuScenesMap
 from numpy import rad2deg
 from random import randint
 
+
 class Generator:
     def __init__(self, nuscData: NuscData) -> None:
         self.nuscData = nuscData
@@ -70,15 +71,15 @@ class Generator:
             atk_final: Data = func(ego_final)
             for idx in range(num):
                 if func == self.LLC:
-                    atk_final.rotate(randint(0, 10),org=ego_final.bound[1])
+                    atk_final.rotate(randint(0, 10), org=ego_final.bound[1])
                 elif func == self.RLC:
-                    atk_final.rotate(randint(0, 10),org=ego_final.bound[0])
-                elif func in  [self.LSide, self.RSide]:
-                    atk_final.move(randint(-5, 5)/10, 90)
+                    atk_final.rotate(randint(0, 10), org=ego_final.bound[0])
+                elif func in [self.LSide, self.RSide]:
+                    atk_final.move(randint(-5, 5) / 10, 90)
                 elif func == self.RearEnd:
-                    atk_final.move(randint(-10, 10)/10, 90)
+                    atk_final.move(randint(-10, 10) / 10, 90)
                 elif func == self.HeadOn:
-                    atk_final.move(randint(-10, 10)/10, 90)
+                    atk_final.move(randint(-10, 10) / 10, 90)
                 else:
                     assert False, "Unknown function"
                 res = quintic_polynomials_planner(
@@ -135,7 +136,9 @@ class Generator:
                 col.set_atk(r)
                 for npcs in inst_anns:
                     if npcs is not anns:
-                        col.add_npc(self.nuscData.get_npc_data(npcs))
+                        col.add_npc(
+                            self.nuscData.get_npc_data(npcs), npcs[0]["instance_token"]
+                        )
                 col.idx = idx
                 ret.append(col)
         return ret

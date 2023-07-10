@@ -38,7 +38,6 @@ def gen_scene(gen: Generator, map: NuScenesMap, args):
                 "wb",
             ) as f:
                 pickle.dump(dataset, f, protocol=pickle.HIGHEST_PROTOCOL)
-            dataset.id = idx
         if args.verbose:
             print(f"scene[{gen.nuscData.scene_id}] {sz} data recorded")
 

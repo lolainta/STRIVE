@@ -475,25 +475,22 @@ class CollisionDataset(Dataset):
     def load_col_data(self):
         dataCluster = list()
         scene_tks = [sc["name"] for sc in self.nusc.scene if sc["name"] in self.scenes]
-        for scene_tk in scene_tks:
-            folder = os.path.join(self.col_data_path,self.version)
-            for cond in os.listdir(folder):
-                sdir = os.path.join(folder,cond, scene_tk)
-                if not os.path.exists(sdir):
-                    continue
-                insts = os.listdir(sdir)
-                for inst in insts:
-                    path = os.path.join(sdir, inst)
-                    with open(path, "rb") as f:
-                        dataset = pickle.load(f)
-                        dataCluster.append(dataset)
+        colDir = os.path.join(self.col_data_path, self.version)
+        for root, dir, file in os.walk(colDir):
+            for f in file:
+                if f.endswith(".pickle"):
+                    with open(os.path.join(root, f), "rb") as pickle_file:
+                        data: ColDataset = pickle.load(pickle_file)
+                        if data.scene["name"] in scene_tks:
+                            dataCluster.append(data)
         return dataCluster
 
     def compile_data(self):
         scene2data = dict()
         for data in self.col_data:
             data: ColDataset
-            scene = data.scene["name"] + "_" + data.inst["token"]
+            scene = data.scene["name"]
+            index = f"{data.scene['name']}_{data.inst['token']}_{data.idx}"
             mname = self.scene2map[data.scene["name"]][0]
             mheight = NUSC_MAP_SIZES[mname][0]
             locname = mname.split("-")[0]
@@ -505,7 +502,7 @@ class CollisionDataset(Dataset):
             cat = self.key2cat[key]
             fst_ann_tk = data.inst["first_annotation_token"]
             ann = self.nusc.get("sample_annotation", fst_ann_tk)
-            scene2data[scene] = {
+            scene2data[index] = {
                 "ego": {
                     "traj": data.ego.serialize(),
                     "w": 1.73,
@@ -519,6 +516,20 @@ class CollisionDataset(Dataset):
                     "k": cat,
                 },
             }
+            for npc_tk, npc in zip(data.npc_tks, data.npcs):
+                # atk_cat = self.nusc.get("category", npc["category_token"])
+                # key = ".".join(atk_cat["name"].split(".")[:2])
+                # if not key in self.key2cat:
+                #     continue
+                # cat = self.key2cat[key]
+                fst_npc_tk = data.inst["first_annotation_token"]
+                ann = self.nusc.get("sample_annotation", fst_npc_tk)
+                scene2data[index][npc_tk] = {
+                    "traj": npc.serialize(),
+                    "w": ann["size"][0],
+                    "l": ann["size"][1],
+                    "k": cat,
+                }
         return self.post_process(scene2data)
 
     def compile_data_org(self):

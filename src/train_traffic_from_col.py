@@ -15,6 +15,7 @@ from torch_geometric.data import DataLoader as GraphDataLoader
 from models.traffic_model import TrafficModel
 from losses.traffic_model import TrafficModelLoss
 from nuscenes.nuscenes import NuScenes
+
 from datasets.collision_dataset import CollisionDataset
 from datasets.map_env import NuScenesMapEnv
 from utils.common import dict2obj, mkdir
@@ -105,8 +106,7 @@ def parse_cfg():
     parser.add_argument(
         "--collision_dir",
         type=str,
-        default="./records",
-        help="Directory to load generated data from",
+        help="Collision Dataset Path",
     )
 
     args = parser.parse_args()
@@ -262,9 +262,9 @@ def main():
 
     # load dataset
     # first create map environment
-    nus_data_path = os.path.join(cfg.data_dir, cfg.data_version)
+    data_path = os.path.join(cfg.data_dir, cfg.data_version)
     map_env = NuScenesMapEnv(
-        nus_data_path,
+        data_path,
         bounds=cfg.map_obs_bounds,
         L=cfg.map_obs_size_pix,
         W=cfg.map_obs_size_pix,
@@ -275,14 +275,10 @@ def main():
     # create nuscenes object out here and pass into dataset to save memory
     Logger.log("Creating nuscenes data object...")
     nusc_obj = NuScenes(
-        version="v1.0-{}".format(cfg.data_version),
-        dataroot=nus_data_path,
-        verbose=False,
+        version="v1.0-{}".format(cfg.data_version), dataroot=data_path, verbose=True
     )
-    # train_dataset = CollisionDataset(cfg.collision_dir, map_env,version=cfg.data)
-    # exit()
     train_dataset = CollisionDataset(
-        nus_data_path,
+        data_path,
         cfg.collision_dir,
         map_env,
         version=cfg.data_version,
@@ -297,7 +293,7 @@ def main():
         reduce_cats=cfg.reduce_cats,
     )
     val_dataset = CollisionDataset(
-        nus_data_path,
+        data_path,
         cfg.collision_dir,
         map_env,
         version=cfg.data_version,
@@ -309,7 +305,6 @@ def main():
         use_challenge_splits=cfg.use_challenge_splits,
         reduce_cats=cfg.reduce_cats,
     )
-
     # create loaders
     train_loader = GraphDataLoader(
         train_dataset,

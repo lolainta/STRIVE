@@ -10,14 +10,16 @@ class ColDataset:
         self.inst = inst
         self.ego: Datalist = list()
         self.npcs: Datalist = list()
+        self.npc_tks: list = list()
         self.atk: Datalist = list()
         self.cond: Condition = cond
 
     def set_ego(self, ego: Datalist) -> None:
         self.ego: Datalist = ego
 
-    def add_npc(self, npc: Datalist) -> None:
+    def add_npc(self, npc: Datalist, tk: str) -> None:
         self.npcs.append(npc)
+        self.npc_tks.append(tk)
 
     def set_atk(self, atk: Datalist) -> None:
         self.atk: Datalist = atk
