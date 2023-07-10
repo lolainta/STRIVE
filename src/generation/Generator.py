@@ -56,12 +56,12 @@ class Generator:
         npc_data.compile()
         ego_final: Data = ego_data[-1]
         ops = {
-            self.LLC: 2,
-            self.RLC: 2,
-            self.LSide: 8,
-            self.RSide: 8,
-            self.RearEnd: 3,
-            self.HeadOn: 3,
+            self.LLC: 1,
+            self.RLC: 1,
+            self.LSide: 12,
+            self.RSide: 12,
+            self.RearEnd: 4,
+            self.HeadOn: 2,
         }
 
         ret = list()
@@ -74,11 +74,13 @@ class Generator:
                 elif func == self.RLC:
                     atk_final.rotate(randint(0, 10),org=ego_final.bound[0])
                 elif func in  [self.LSide, self.RSide]:
-                    atk_final.move(randint(-50, 50)/10, 90)
+                    atk_final.move(randint(-5, 5)/10, 90)
                 elif func == self.RearEnd:
-                    atk_final.move(randint(-20, 20)/10, 90)
+                    atk_final.move(randint(-10, 10)/10, 90)
                 elif func == self.HeadOn:
-                    atk_final.move(randint(-20, 20)/10, 90)
+                    atk_final.move(randint(-10, 10)/10, 90)
+                else:
+                    assert False, "Unknown function"
                 res = quintic_polynomials_planner(
                     src=npc_data[0].transform,
                     sv=npc_data[0].velocity,
