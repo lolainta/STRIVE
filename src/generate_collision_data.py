@@ -30,13 +30,7 @@ def gen_scene(gen: Generator, map: NuScenesMap, args):
             )
             fname = f"{dataset.idx}_{dataset.inst['token']}.pickle"
             os.makedirs(out_dir, exist_ok=True)
-            with open(
-                os.path.join(
-                    out_dir,
-                    fname,
-                ),
-                "wb",
-            ) as f:
+            with open(os.path.join(out_dir, fname), "wb") as f:
                 pickle.dump(dataset, f, protocol=pickle.HIGHEST_PROTOCOL)
         if args.verbose:
             print(f"scene[{gen.nuscData.scene_id}] {sz} data recorded")
@@ -47,6 +41,12 @@ def generate(sem: Semaphore, gen: Generator, map: NuScenesMap, args):
     print(f"scene[{gen.nuscData.scene_id}] Start")
     gen_scene(gen, map, args)
     print(f"scene[{gen.nuscData.scene_id}] Done")
+    os.close(
+        os.open(
+            os.path.join(args.record, args.dataset.split('-')[-1], gen.nuscData.scene["name"]),
+            os.O_RDONLY | os.O_CREAT,
+        )
+    )
     sem.release()
 
 
@@ -60,6 +60,11 @@ def run(args):
     maps = dict()
     nuscs = list()
     for i in trange(len(nusc.scene)):
+        if args.record != "" and os.path.exists(
+            os.path.join(args.record, args.dataset.split('-')[-1], nusc.scene[i]["name"])
+        ):
+            print(f"scene[{i}] already generated")
+            continue
         nuscData = NuscData(nusc, i)
         mapName = nuscData.get_map()
         if mapName not in maps:
@@ -72,8 +77,9 @@ def run(args):
             nuscMap = maps[mapName]
         nuscs.append((nuscData, nuscMap))
     print("Data Loaded")
+    os.makedirs(os.path.join(args.record, args.dataset.split('-')[-1]), exist_ok=True)
     plist = list()
-    sem = Semaphore(10)
+    sem = Semaphore(16)
     for data, map in nuscs:
         gen: Generator = Generator(data)
         p = Process(target=generate, args=(sem, gen, map, args))
