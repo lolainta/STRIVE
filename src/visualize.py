@@ -7,7 +7,7 @@ from nuscenes.map_expansion.map_api import NuScenesMap
 import glob, os
 from multiprocessing import Process, Semaphore
 from tqdm import trange
-from time import sleep
+import random
 
 
 def show(path: str, out_dir, nuscs):
@@ -79,6 +79,7 @@ def main():
     pickles = glob.glob(
         f"./{os.path.join(args.dir,args.version)}/**/*.pickle", recursive=True
     )
+    random.shuffle(pickles)
     parmas = list()
     for path in pickles:
         out = os.path.join(out_dir, path.replace("/", "_")[12:-7])

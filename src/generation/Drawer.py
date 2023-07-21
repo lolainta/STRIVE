@@ -73,8 +73,8 @@ class Drawer:
             plt.clf()
             plt.close()
         os.system(
-            # f"ffmpeg -r 2 -i {os.path.join(out,'%02d.png')} -pix_fmt yuv420p -y {out}.mp4 -v quiet"
-            f"ffmpeg -r 2 -i {os.path.join(out,'%02d.png')} -y {out}.mp4 -v quiet"
+            f"ffmpeg -r 2 -i {os.path.join(out,'%02d.png')} -pix_fmt yuv420p -y {out}.mp4 -v quiet"
+            # f"ffmpeg -r 2 -i {os.path.join(out,'%02d.png')} -y {out}.mp4 -v quiet"
         )
 
     def show(self) -> None:
