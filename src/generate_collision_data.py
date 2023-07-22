@@ -43,7 +43,9 @@ def generate(sem: Semaphore, gen: Generator, map: NuScenesMap, args):
     print(f"scene[{gen.nuscData.scene_id}] Done")
     os.close(
         os.open(
-            os.path.join(args.record, args.dataset.split('-')[-1], gen.nuscData.scene["name"]),
+            os.path.join(
+                args.record, args.dataset.split("-")[-1], gen.nuscData.scene["name"]
+            ),
             os.O_RDONLY | os.O_CREAT,
         )
     )
@@ -61,7 +63,9 @@ def run(args):
     nuscs = list()
     for i in trange(len(nusc.scene)):
         if args.record != "" and os.path.exists(
-            os.path.join(args.record, args.dataset.split('-')[-1], nusc.scene[i]["name"])
+            os.path.join(
+                args.record, args.dataset.split("-")[-1], nusc.scene[i]["name"]
+            )
         ):
             print(f"scene[{i}] already generated")
             continue
@@ -77,7 +81,7 @@ def run(args):
             nuscMap = maps[mapName]
         nuscs.append((nuscData, nuscMap))
     print("Data Loaded")
-    os.makedirs(os.path.join(args.record, args.dataset.split('-')[-1]), exist_ok=True)
+    os.makedirs(os.path.join(args.record, args.dataset.split("-")[-1]), exist_ok=True)
     plist = list()
     sem = Semaphore(16)
     for data, map in nuscs:
