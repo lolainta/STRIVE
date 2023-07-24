@@ -277,7 +277,7 @@ class VehCollLoss(nn.Module):
             .expand(T, NA, NA, self.num_circ, 2)
             .reshape(T * NA * NA, self.num_circ, 2)
         )
-        pair_dists = torch.cdist(cur_cent1, cur_cent2).view(
+        pair_dists = torch.cdist(cur_cent1.contiguous(), cur_cent2.contiguous()).view(
             T * NA * NA, self.num_circ * self.num_circ
         )
 
