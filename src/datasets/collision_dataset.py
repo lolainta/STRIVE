@@ -15,10 +15,10 @@ from torch.utils.data import Dataset
 from torch_geometric.data import Data as Graph
 
 from nuscenes.nuscenes import NuScenes
-from pyquaternion import Quaternion
 from nuscenes.utils.splits import create_splits_scenes
 
 from generation.Dataset import ColDataset
+from generation.Condition import Condition
 import sys, os
 
 cur_file_path = os.path.dirname(os.path.realpath(__file__))
@@ -90,7 +90,7 @@ class CollisionDataset(Dataset):
         version="mini",
         split="train",
         categories=["car", "truck"],
-        npast=4,
+        npast=8,
         nfuture=12,
         nusc=None,
         noise_std=0.0,
@@ -410,58 +410,6 @@ class CollisionDataset(Dataset):
 
         return scenes, pred_challenge_scenes
 
-    def get_scenes_org(self):
-        # filter by scene split
-        # use val for testing and split up train for validation
-        cur_split = {
-            "v1.0-trainval": {True: "train", False: "val"},
-            "v1.0-mini": {True: "mini_train", False: "mini_val"},
-        }[self.nusc.version][self.split == "train" or self.split == "val"]
-        scenes = create_splits_scenes()[cur_split]
-
-        # use scenes based on the prediction challenge, so val is actually part of the
-        #   training set and we use the true val split for testing
-        num_in_train_val = (
-            self.val_size if self.version == "trainval" else 2
-        )  # mini is just hardcoded
-        scenes = np.array(scenes)
-        print("num total scenes before split: %d" % (len(scenes)))
-        val_mask = np.zeros((scenes.shape[0]), dtype=bool)
-        if self.split in ["train", "val"]:
-            if self.randomize_val:
-                print("Using validation split that is a random subset of train!")
-                # pre-computed random splits
-                if num_in_train_val == 200:
-                    val_inds = NUSC_VAL_SPLIT_200
-                elif num_in_train_val == 400:
-                    val_inds = NUSC_VAL_SPLIT_400
-                elif self.version == "mini":
-                    val_inds = [0, 1]
-                else:
-                    print("Val size not supported! Please use 200, 400")
-                val_inds = np.array(val_inds)
-                val_mask[val_inds] = True
-            else:
-                val_mask[:num_in_train_val] = True
-
-        if self.split == "train":
-            scenes = scenes[np.logical_not(val_mask)]
-        if self.split == "val":
-            scenes = scenes[val_mask]
-
-        scenes = sorted(scenes.tolist())
-
-        pred_challenge_scenes = None  # dict mapping scene_name -> list of instance-tok_sample-tok for each challenge split data
-        if self.use_challenge_splits:
-            from nuscenes.prediction import PredictHelper
-
-            chall_split_map = {"train": "train", "val": "train_val", "test": "val"}
-            pred_challenge_scenes, scenes, split_data = get_prediction_challenge_split(
-                chall_split_map[self.split], dataroot=self.nusc_data_path
-            )
-
-        return scenes, pred_challenge_scenes
-
     def get_scene2map(self):
         scene2map = {}
         for rec in self.nusc.scene:
@@ -503,6 +451,7 @@ class CollisionDataset(Dataset):
             fst_ann_tk = data.inst["first_annotation_token"]
             ann = self.nusc.get("sample_annotation", fst_ann_tk)
             scene2data[index] = {
+                "condition": data.cond,
                 "ego": {
                     "traj": data.ego.serialize(),
                     "w": 1.73,
@@ -517,11 +466,6 @@ class CollisionDataset(Dataset):
                 },
             }
             for npc_tk, npc in zip(data.npc_tks, data.npcs):
-                # atk_cat = self.nusc.get("category", npc["category_token"])
-                # key = ".".join(atk_cat["name"].split(".")[:2])
-                # if not key in self.key2cat:
-                #     continue
-                # cat = self.key2cat[key]
                 fst_npc_tk = data.inst["first_annotation_token"]
                 ann = self.nusc.get("sample_annotation", fst_npc_tk)
                 scene2data[index][npc_tk] = {
@@ -530,92 +474,7 @@ class CollisionDataset(Dataset):
                     "l": ann["size"][1],
                     "k": cat,
                 }
-        return self.post_process(scene2data)
-
-    def compile_data_org(self):
-        # collect all samples (keyframes) in our split scenes and sort by timestamp
-        recs = [rec for rec in self.nusc.sample]
-        for rec in recs:
-            rec["scene_name"] = self.nusc.get("scene", rec["scene_token"])["name"]
-        recs = [rec for rec in recs if rec["scene_name"] in self.scenes]
-        recs = sorted(recs, key=lambda x: (x["scene_name"], x["timestamp"]))
-
-        scene2data = {}
-        print("Loading in %s data..." % (self.split))
-        for rec in tqdm(recs):
-            samp_token = rec["token"]
-            scene = rec["scene_name"]
-            mname = self.scene2map[scene][0]
-            mheight = NUSC_MAP_SIZES[mname][0]
-            locname = mname.split("-")[0]
-            if scene not in scene2data:
-                scene2data[scene] = {}
-                scene2data[scene]["ego"] = {
-                    "traj": [],
-                    "w": 1.73,
-                    "l": 4.084,
-                    "k": "ego",
-                }
-            # add ego location always
-            egopose = self.nusc.get(
-                "ego_pose",
-                self.nusc.get("sample_data", rec["data"]["LIDAR_TOP"])[
-                    "ego_pose_token"
-                ],
-            )
-            rot = Quaternion(egopose["rotation"]).rotation_matrix
-            rot = np.arctan2(rot[1, 0], rot[0, 0])
-            scene2data[scene]["ego"]["traj"].append(
-                {
-                    "x": egopose["translation"][0],
-                    "y": mheight - egopose["translation"][1]
-                    if self.flip_singapore and locname == "singapore"
-                    else egopose["translation"][1],
-                    "h": rot,
-                    "hcos": np.cos(rot),
-                    "hsin": -np.sin(rot)
-                    if self.flip_singapore and locname == "singapore"
-                    else np.sin(rot),
-                    "t": egopose["timestamp"],
-                    "samp_tok": samp_token,
-                }
-            )
-            # add detection locations
-            for ann in rec["anns"]:
-                instance = self.nusc.get("sample_annotation", ann)
-                # only add if in the desired categories
-                cur_key = ".".join(instance["category_name"].split(".")[:2])
-                if not cur_key in self.key2cat:
-                    continue
-                cur_cat = self.key2cat[cur_key]
-
-                instance_name = instance["instance_token"]
-                rot = Quaternion(instance["rotation"]).rotation_matrix
-                rot = np.arctan2(rot[1, 0], rot[0, 0])
-                if instance_name not in scene2data[scene]:
-                    assert instance_name != "ego", instance_name
-                    scene2data[scene][instance_name] = {
-                        "traj": [],
-                        "w": instance["size"][0],
-                        "l": instance["size"][1],
-                        "k": cur_cat,
-                    }
-                scene2data[scene][instance_name]["traj"].append(
-                    {
-                        "x": instance["translation"][0],
-                        "y": mheight - instance["translation"][1]
-                        if self.flip_singapore and locname == "singapore"
-                        else instance["translation"][1],
-                        "h": rot,
-                        "hcos": np.cos(rot),
-                        "hsin": -np.sin(rot)
-                        if self.flip_singapore and locname == "singapore"
-                        else np.sin(rot),
-                        "t": rec["timestamp"],
-                        "samp_tok": samp_token,
-                    }
-                )
-
+        print(len(scene2data))
         return self.post_process(scene2data)
 
     def post_process(self, data):
@@ -707,7 +566,7 @@ class CollisionDataset(Dataset):
             # first map onto same timeline as ego with nans at other spots
             #   also compute velocities.
             for name in data[scene]:
-                if name == "ego":
+                if name in ["ego", "condition"]:
                     continue
                 info = {}
                 inst_tok = name
@@ -850,7 +709,7 @@ class CollisionDataset(Dataset):
             if not self.use_challenge_splits:
                 # update data map
                 scene_seq = [
-                    (scene, start_idx)
+                    (scene, data[scene]["condition"], start_idx)
                     for start_idx in range(0, T - self.seq_len, self.seq_interval)
                 ]
                 seq_map.extend(scene_seq)
@@ -864,7 +723,10 @@ class CollisionDataset(Dataset):
         idx_info = self.seq_map[idx]
         inst_tok = None
         if not self.use_challenge_splits:
-            scene_name, sidx = idx_info
+            scene_name, col_type, sidx = idx_info
+            col_type_one_hot = torch.eye(len(Condition), dtype=torch.int)[
+                col_type.value
+            ]
         else:
             scene_name, sidx, inst_tok = idx_info
         eidx = sidx + self.seq_len
@@ -883,7 +745,7 @@ class CollisionDataset(Dataset):
         lw = [ego_data["lw"]]
         past_vis = [ego_data["is_vis"][sidx:midx]]
         fut_vis = [ego_data["is_vis"][midx:eidx]]
-
+        coll_type_list = [col_type_one_hot]
         if self.use_challenge_splits:
             # prepend data for the agent we're making a prediction for
             # so ego is not at 0, challenge data is
@@ -918,6 +780,7 @@ class CollisionDataset(Dataset):
             lw.append(agent_data["lw"])
             past_vis.append(agent_data["is_vis"][sidx:midx])
             fut_vis.append(agent_data["is_vis"][midx:eidx])
+            coll_type_list.append(col_type_one_hot)
 
         past = torch.Tensor(np.stack(past, axis=0))
         future = torch.Tensor(np.stack(future, axis=0))
@@ -925,6 +788,7 @@ class CollisionDataset(Dataset):
         lw = torch.Tensor(np.stack(lw, axis=0))
         past_vis = torch.Tensor(np.stack(past_vis, axis=0))
         fut_vis = torch.Tensor(np.stack(fut_vis, axis=0))
+        coll_type_vec = torch.Tensor(np.stack(coll_type_list, axis=0))
 
         # normalize
         past_gt = self.normalizer.normalize(past)  # gt past (no noise)
@@ -978,4 +842,4 @@ class CollisionDataset(Dataset):
         }
         scene_graph = Graph(**graph_prop_dict)
 
-        return scene_graph, map_idx
+        return scene_graph, map_idx, coll_type_vec

@@ -29,6 +29,7 @@ from utils.torch import (
     c2c,
 )
 from utils.config import get_parser, add_base_args
+import traceback
 
 
 def parse_cfg():
@@ -148,7 +149,7 @@ def run_one_epoch(
 
     empty_cache = False
     for i, data in enumerate(pbar):
-        scene_graph, map_idx = data
+        scene_graph, map_idx, coll_type = data
         pred = loss_dict = None
         if empty_cache:
             empty_cache = False
@@ -157,15 +158,17 @@ def run_one_epoch(
         try:
             scene_graph = scene_graph.to(device)
             map_idx = map_idx.to(device)
-            # print(scene_graph)
-            # print(map_idx)
+            coll_type = coll_type.to(device)
             B = map_idx.size(0)
 
-            do_sample = (
-                loss_fn.loss_weights["coll_veh_prior"] > 0.0
-                or loss_fn.loss_weights["coll_env_prior"] > 0.0
+            do_sample = loss_fn.loss_weights["coll_env_prior"] > 0.0
+            pred = model(
+                scene_graph,
+                map_idx,
+                map_env,
+                future_sample=do_sample,
+                coll_type=coll_type,
             )
-            pred = model(scene_graph, map_idx, map_env, future_sample=do_sample)
 
             loss_dict = loss_fn(scene_graph, pred, map_idx=map_idx, map_env=map_env)
             loss = loss_dict["loss"][0]
@@ -189,6 +192,7 @@ def run_one_epoch(
                 if p.grad is not None:
                     del p.grad  # free some memory
             empty_cache = True
+            traceback.print_exc()
             continue
 
         # metrics to save
@@ -328,13 +332,13 @@ def main():
         cfg.past_len,
         cfg.future_len,
         cfg.map_obs_size_pix,
-        len(train_dataset.categories),
+        len(train_dataset.categories),  # 1
         map_feat_size=cfg.map_feat_size,
         past_feat_size=cfg.past_feat_size,
         future_feat_size=cfg.future_feat_size,
         latent_size=cfg.latent_size,
         output_bicycle=cfg.model_output_bicycle,
-        conv_channel_in=map_env.num_layers,
+        conv_channel_in=map_env.num_layers,  # 2
         conv_kernel_list=cfg.conv_kernel_list,
         conv_stride_list=cfg.conv_stride_list,
         conv_filter_list=cfg.conv_filter_list,
@@ -343,7 +347,6 @@ def main():
     loss_weights = {
         "recon": cfg.loss_recon,
         "kl": cfg.loss_kl,
-        "coll_veh_prior": cfg.loss_veh_coll_prior,
         "coll_env_prior": cfg.loss_env_coll_prior,
     }
     loss_fn = TrafficModelLoss(

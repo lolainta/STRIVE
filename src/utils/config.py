@@ -87,7 +87,7 @@ def add_base_args(parser):
     parser.add_argument(
         "--past_len",
         type=int,
-        default=4,
+        default=8,
         help="Number of past (input) timesteps to use.",
     )
     parser.add_argument(

@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: MIT
 
-import time
 
 import torch
 from torch import nn
@@ -71,22 +70,22 @@ class TrafficModelLoss(nn.Module):
             + self.loss_weights["kl"] * kl_loss.mean()
         )
 
-        prior_coll_loss = None
-        if self.loss_weights["coll_veh_prior"] > 0.0:
-            # compute veh2veh collision
-            if self.state_normalizer is None or self.att_normalizer is None:
-                print("Must have normalizers to compute collisison loss!")
-                exit()
-            # unnormalize
-            veh_att = self.att_normalizer.unnormalize(scene_graph.lw)
-            # build the loss function
-            veh_coll_loss = VehCollLoss(veh_att, scene_graph.batch, scene_graph.ptr)
-            # compute for each desired
-            if self.loss_weights["coll_veh_prior"] > 0.0 and "future_samp" in pred:
-                prior_traj = self.state_normalizer.unnormalize(pred["future_samp"])
-                prior_coll_pens, na_sqr = veh_coll_loss(prior_traj)
-                prior_coll_loss = torch.sum(prior_coll_pens) / na_sqr
-                loss = loss + self.loss_weights["coll_veh_prior"] * prior_coll_loss
+        # prior_coll_loss = None
+        # if self.loss_weights["coll_veh_prior"] > 0.0:
+        #     # compute veh2veh collision
+        #     if self.state_normalizer is None or self.att_normalizer is None:
+        #         print("Must have normalizers to compute collisison loss!")
+        #         exit()
+        #     # unnormalize
+        #     veh_att = self.att_normalizer.unnormalize(scene_graph.lw)
+        #     # build the loss function
+        #     veh_coll_loss = VehCollLoss(veh_att, scene_graph.batch, scene_graph.ptr)
+        #     # compute for each desired
+        #     if self.loss_weights["coll_veh_prior"] > 0.0 and "future_samp" in pred:
+        #         prior_traj = self.state_normalizer.unnormalize(pred["future_samp"])
+        #         prior_coll_pens, na_sqr = veh_coll_loss(prior_traj)
+        #         prior_coll_loss = torch.sum(prior_coll_pens) / na_sqr
+        #         loss = loss + self.loss_weights["coll_veh_prior"] * prior_coll_loss
 
         prior_coll_env_loss = None
         if self.loss_weights["coll_env_prior"] > 0.0:
@@ -121,8 +120,8 @@ class TrafficModelLoss(nn.Module):
             "kl_loss": kl_loss,  # (NA, )
         }
 
-        if prior_coll_loss is not None:
-            loss_out["coll_veh_prior"] = prior_coll_loss.view((1,))
+        # if prior_coll_loss is not None:
+        #     loss_out["coll_veh_prior"] = prior_coll_loss.view((1,))
         if prior_coll_env_loss is not None:
             loss_out["coll_env_prior"] = prior_coll_env_loss.view(-1)  # (B, T)
 
