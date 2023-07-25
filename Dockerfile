@@ -16,13 +16,8 @@ ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-11.0/targets/x86_64-linux/l
 
 COPY requirements.txt .
 RUN MAKEFLAGS="-j$(nproc)" pip3 install -r requirements.txt
-# RUN pip3 install torch_geometric
-# RUN pip3 install tqdm
-# RUN pip3 install matplotlib
-# RUN pip3 install configargparse
 
-# RUN dpkg -i 
-# RUN pip3 install nuscenes-devkit==1.1.5
+RUN apt install -y ffmpeg
 
 WORKDIR /strive
 # RUN pip3 install -r requirements.txt
