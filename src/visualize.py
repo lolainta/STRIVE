@@ -10,7 +10,7 @@ from tqdm import trange
 import random
 
 
-def show(path: str, out_dir, nuscs):
+def show(path: str, out_dir, nuscs, encode):
     out = os.path.join(out_dir, path.replace("/", "_")[12:-7])
     print(f"Loading: {path}", flush=True)
     with open(path, "rb") as f:
@@ -22,15 +22,16 @@ def show(path: str, out_dir, nuscs):
             found = True
             plt = Drawer(nuscData, nuscMap)
             plt.plot_dataset(dataset, out)
+            plt.export_mp4(out, encode)
             plt.close()
             print(f"Saved: {path}", flush=True)
     if not found:
         assert False, f"Scene {dataset.scene['name']} not found"
 
 
-def sem_show(sem: Semaphore, path: str, out_dir, nuscs):
+def sem_show(sem: Semaphore, path: str, out_dir, nuscs, encode):
     sem.acquire()
-    show(path, out_dir, nuscs)
+    show(path, out_dir, nuscs, encode)
     sem.release()
 
 
@@ -53,6 +54,12 @@ def main():
         default="mini",
         choices=["mini", "trainval"],
         help="Data version",
+    )
+    parser.add_argument(
+        "-e",
+        "--encode",
+        action="store_true",
+        help="Encode with H.264",
     )
     args = parser.parse_args()
     print(args)
@@ -84,11 +91,9 @@ def main():
     for path in pickles:
         out = os.path.join(out_dir, path.replace("/", "_")[12:-7])
         if not os.path.exists(f"{out}.mp4"):
-            parmas.append((path, out_dir, nuscs))
+            parmas.append((path, out_dir, nuscs, args.encode))
     print(f"Total: {len(parmas)}")
 
-    # for param in parmas:
-    #     show(*param)
     sem = Semaphore(10)
     plist = list()
     for param in parmas:
