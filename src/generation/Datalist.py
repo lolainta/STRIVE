@@ -21,6 +21,20 @@ class Datalist:
         self.gen_velocity()
         self.gen_accelerate()
 
+    def trim(self, timelist: list) -> None:
+        newlist = list()
+        for data in self.datalist:
+            if data.timestamp in timelist:
+                newlist.append(data)
+        self.datalist = newlist
+
+    def gen_timelist(self) -> list:
+        ret = list()
+        for data in self.datalist:
+            ret.append(data.timestamp)
+        self.timelist = ret
+        return ret
+
     def gen_velocity(self) -> None:
         dxdt = list()
         for i in range(len(self.datalist) - 1):

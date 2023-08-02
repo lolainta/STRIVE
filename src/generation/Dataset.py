@@ -24,6 +24,13 @@ class ColDataset:
     def set_atk(self, atk: Datalist) -> None:
         self.atk: Datalist = atk
 
+    def trim(self, timelist: list) -> None:
+        self.ego.trim(timelist)
+        for npc in self.npcs:
+            npc.trim(timelist)
+        self.atk.trim(timelist)
+        self.timelist = timelist
+
     def filter_by_vel_acc(self) -> bool:
         self.atk.compile()
         maxv = max([t.velocity for t in self.atk])
@@ -35,10 +42,8 @@ class ColDataset:
 
     def filter_by_collision(self) -> bool:
         blocks = dict()
-        for d in self.ego:
+        for d in self.ego[:-1]:
             d: Data
-            if d == self.ego[-1]:
-                continue
             if d.timestamp not in blocks:
                 blocks[d.timestamp] = list()
             blocks[d.timestamp].append(d.get_poly_bound())
@@ -47,7 +52,7 @@ class ColDataset:
                 d: Data
                 if d.timestamp not in blocks:
                     blocks[d.timestamp] = list()
-                    assert d.timestamp == self.ego[-1].timestamp
+                    # assert d.timestamp == self.ego[-1].timestamp
                 blocks[d.timestamp].append(d.get_poly_bound())
         for d in self.atk:
             d: Data

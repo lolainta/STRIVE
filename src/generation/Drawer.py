@@ -51,9 +51,9 @@ class Drawer:
             file=sys.stderr,
         )
         os.makedirs(out, exist_ok=True)
-        for idx, cur_time in enumerate(self.nuscData.times):
+        for idx, cur_time in enumerate(ds.timelist):
             with warnings.catch_warnings():
-                # warnings.filterwarnings("ignore")
+                warnings.filterwarnings("ignore")
                 self.fig, self.ax = self.nuscMap.render_layers(["drivable_area"])
             center = ds.ego.datalist[idx].transform.translation
             self.ax.set_xlim(center.x - 100, center.x + 100)
@@ -72,10 +72,33 @@ class Drawer:
             plt.cla()
             plt.clf()
             plt.close()
-        os.system(
-            f"ffmpeg -r 2 -i {os.path.join(out,'%02d.png')} -pix_fmt yuv420p -y {out}.mp4 -v quiet"
-            # f"ffmpeg -r 2 -i {os.path.join(out,'%02d.png')} -y {out}.mp4 -v quiet"
-        )
+
+    def plot_atks(self, atks: list, out: str) -> None:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")
+            self.fig, self.ax = self.nuscMap.render_layers(["drivable_area"])
+        for atk, col in atks:
+            self.plot_car(atk[-1], col=col)
+        xmin = min([min([d.transform.translation.x for d in atk]) for atk, _ in atks])
+        xmax = max([max([d.transform.translation.x for d in atk]) for atk, _ in atks])
+        ymin = min([min([d.transform.translation.y for d in atk]) for atk, _ in atks])
+        ymax = max([max([d.transform.translation.y for d in atk]) for atk, _ in atks])
+        self.ax.set_xlim(xmin - 5, xmax + 5)
+        self.ax.set_ylim(ymin - 5, ymax + 5)
+        plt.savefig(out)
+        plt.cla()
+        plt.clf()
+        plt.close()
+
+    def export_mp4(self, out: str, h264=True) -> None:
+        if h264:
+            os.system(
+                f"ffmpeg -r 2 -i {os.path.join(out,'%02d.png')} -pix_fmt yuv420p -y {out}.mp4 -v quiet"
+            )
+        else:
+            os.system(
+                f"ffmpeg -r 2 -i {os.path.join(out,'%02d.png')} -y {out}.mp4 -v quiet"
+            )
 
     def show(self) -> None:
         plt.show()
