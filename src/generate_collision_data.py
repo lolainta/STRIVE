@@ -11,9 +11,10 @@ from tqdm import trange
 
 def gen_scene(gen: Generator, map: NuScenesMap, args):
     dataCluster = gen.gen_all()
+    gen.verbose = True
     validData = gen.filter_by_vel_acc(dataCluster)
-    validData = gen.filter_by_collision(validData)
     validData = gen.filter_by_curvature(validData)
+    validData = gen.filter_by_collision(validData)
     validData = gen.filter_by_map(validData, map)
     osz = len(dataCluster)
     sz = len(validData)
@@ -83,7 +84,7 @@ def run(args):
     print("Data Loaded")
     os.makedirs(os.path.join(args.record, args.dataset.split("-")[-1]), exist_ok=True)
     plist = list()
-    sem = Semaphore(16)
+    sem = Semaphore(10)
     for data, map in nuscs:
         gen: Generator = Generator(data)
         p = Process(target=generate, args=(sem, gen, map, args))
