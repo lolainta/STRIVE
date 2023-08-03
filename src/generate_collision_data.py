@@ -10,8 +10,8 @@ from tqdm import trange
 
 
 def gen_scene(gen: Generator, map: NuScenesMap, args):
-    dataCluster = gen.gen_all()
     gen.verbose = True
+    dataCluster = gen.gen_all()
     validData = gen.filter_by_vel_acc(dataCluster)
     validData = gen.filter_by_curvature(validData)
     validData = gen.filter_by_collision(validData)

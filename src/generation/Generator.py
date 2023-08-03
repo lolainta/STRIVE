@@ -152,6 +152,8 @@ class Generator:
                 col.ego.gen_timelist()
                 assert col.atk.timelist == col.ego.timelist
                 ret.append(col)
+        if self.verbose:
+            print(f"scene[{self.nuscData.scene_id}] Generated {len(ret)} data")
         return ret
 
     def filter_by_vel_acc(self, dataCluster: list) -> list:
