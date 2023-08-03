@@ -46,15 +46,18 @@ def main():
             if file[-7:] == ".pickle":
                 pickles.append(os.path.join(root, file))
     print(f"Total: {len(pickles)}")
-    # res = collections.defaultdict(int)
     dataCluster = list()
     for path in tqdm.tqdm(pickles):
         with open(path, "rb") as f:
             dataset: ColDataset = pickle.load(f)
             dataCluster.append(dataset)
-            # dur = dataset.ego.datalist[-1].timestamp - dataset.ego.datalist[0].timestamp
-            # dur = dur // 100000 / 10
-            # res[dur] += 1
+
+    res = collections.defaultdict(int)
+    for dataset in dataCluster:
+        dur = dataset.ego.datalist[-1].timestamp - dataset.ego.datalist[0].timestamp
+        dur = dur // 100000 / 10
+        res[dur] += 1
+    print({k:res[k] for k in sorted(res)})
 
     dsdict = collections.defaultdict(list)
     for dataset in dataCluster:
@@ -83,6 +86,7 @@ def main():
         Condition.JC: "yellow",
         Condition.LTAP: "purple",
     }
+
     for scene, datasets in dsdict.items():
         print(scene, len(datasets))
         drawer = Drawer(*scene2data[scene])
