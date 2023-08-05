@@ -55,9 +55,9 @@ def main():
     res = collections.defaultdict(int)
     for dataset in dataCluster:
         dur = dataset.ego.datalist[-1].timestamp - dataset.ego.datalist[0].timestamp
-        dur = dur // 100000 / 10
+        dur = dur // 500000 / 2
         res[dur] += 1
-    print({k:res[k] for k in sorted(res)})
+    print({k: res[k] for k in sorted(res)})
 
     dsdict = collections.defaultdict(list)
     for dataset in dataCluster:

@@ -37,12 +37,13 @@ class Drawer:
         for i in range(4):
             self.plot_seg(bound[i], bound[(i + 1) % 4], col=col)
 
-    def plot_car(self, d: Data, col="green") -> None:
+    def plot_car(self, d: Data, col="green", no_box=False) -> None:
         x = d.transform.translation.x
         y = d.transform.translation.y
         yaw = d.transform.rotation.yaw
         bnd = d.bound
-        self.plot_box(bnd, col=col)
+        if not no_box:
+            self.plot_box(bnd, col=col)
         self.plot_arrow(x, y, yaw, fc=col)
 
     def plot_dataset(self, ds: ColDataset, out: str) -> None:
@@ -78,7 +79,7 @@ class Drawer:
             warnings.filterwarnings("ignore")
             self.fig, self.ax = self.nuscMap.render_layers(["drivable_area"])
         for atk, col in atks:
-            self.plot_car(atk[-1], col=col)
+            self.plot_car(atk[-1], col=col, no_box=True)
         xmin = min([min([d.transform.translation.x for d in atk]) for atk, _ in atks])
         xmax = max([max([d.transform.translation.x for d in atk]) for atk, _ in atks])
         ymin = min([min([d.transform.translation.y for d in atk]) for atk, _ in atks])
