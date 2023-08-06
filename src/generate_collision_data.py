@@ -72,6 +72,10 @@ def run(args):
             continue
         nuscData = NuscData(nusc, i)
         mapName = nuscData.get_map()
+
+        if mapName != "singapore-onenorth":
+            continue
+
         if mapName not in maps:
             nuscMap = NuScenesMap(
                 dataroot=f"data/nuscenes/{args.dataset.split('-')[-1]}",
@@ -81,7 +85,8 @@ def run(args):
         else:
             nuscMap = maps[mapName]
         nuscs.append((nuscData, nuscMap))
-    print("Data Loaded")
+
+    print(f"{len(nuscs)} scenes to generate")
     os.makedirs(os.path.join(args.record, args.dataset.split("-")[-1]), exist_ok=True)
     plist = list()
     sem = Semaphore(10)
