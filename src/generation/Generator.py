@@ -16,6 +16,9 @@ class Generator:
         self.nuscData = nuscData
         self.verbose = False
 
+    def fetch_data(self):
+        self.nuscData.fetch_data()
+
     def LLC(self, d: Data) -> Data:
         ret = deepcopy(d)
         ret.move(ret.width, 90)
@@ -59,10 +62,10 @@ class Generator:
         ops = {
             self.LLC: 1,
             self.RLC: 1,
-            self.LSide: 1,
-            self.RSide: 1,
+            self.LSide: 12,
+            self.RSide: 12,
             self.RearEnd: 2,
-            self.HeadOn: 2,
+            self.HeadOn: 1,
         }
 
         ret = list()

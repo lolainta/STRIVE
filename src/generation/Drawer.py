@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sys
 from generation.Data import Data
-from generation.NuscData import NuscData
 from generation.Dataset import ColDataset
 from generation.Translation import Translation
 from nuscenes.map_expansion.map_api import NuScenesMap
@@ -11,10 +10,8 @@ import warnings
 
 
 class Drawer:
-    def __init__(self, nuscData: NuscData, nuscMap: NuScenesMap, delay=1e-12) -> None:
+    def __init__(self, nuscMap: NuScenesMap, delay=1e-12) -> None:
         self.delay = delay
-        self.nusc = nuscData.nusc
-        self.nuscData = nuscData
         self.nuscMap = nuscMap
 
     def plot_arrow(self, x, y, yaw, length=2.0, width=1, fc="r", ec="k") -> None:
@@ -74,18 +71,18 @@ class Drawer:
             plt.clf()
             plt.close()
 
-    def plot_atks(self, atks: list, out: str) -> None:
+    def plot_atks(self, atks: list, out: str, no_box=False) -> None:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")
             self.fig, self.ax = self.nuscMap.render_layers(["drivable_area"])
         for atk, col in atks:
-            self.plot_car(atk[-1], col=col, no_box=True)
-        xmin = min([min([d.transform.translation.x for d in atk]) for atk, _ in atks])
-        xmax = max([max([d.transform.translation.x for d in atk]) for atk, _ in atks])
-        ymin = min([min([d.transform.translation.y for d in atk]) for atk, _ in atks])
-        ymax = max([max([d.transform.translation.y for d in atk]) for atk, _ in atks])
-        self.ax.set_xlim(xmin - 5, xmax + 5)
-        self.ax.set_ylim(ymin - 5, ymax + 5)
+            self.plot_car(atk[-1], col=col, no_box=no_box)
+        xmin = min([atk[-1].transform.translation.x for atk, _ in atks])
+        xmax = max([atk[-1].transform.translation.x for atk, _ in atks])
+        ymin = min([atk[-1].transform.translation.y for atk, _ in atks])
+        ymax = max([atk[-1].transform.translation.y for atk, _ in atks])
+        self.ax.set_xlim(xmin - 20, xmax + 20)
+        self.ax.set_ylim(ymin - 20, ymax + 20)
         plt.savefig(out)
         plt.cla()
         plt.clf()

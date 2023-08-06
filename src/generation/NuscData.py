@@ -9,6 +9,11 @@ class NuscData:
         self.nusc = nusc
         self.scene_id = scene
         self.scene = self.nusc.scene[scene]
+        self.samples: list
+        self.instances: list
+        self.times: list
+
+    def fetch_data(self):
         self.samples: list = self.get_samples()
         self.instances: list = self.get_instances()
         self.times = self.get_time()

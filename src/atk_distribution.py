@@ -69,33 +69,55 @@ def main():
         verbose=True,
     )
 
-    scene2data = dict()
+    scene2map = dict()
+    maps = dict()
     for i in trange(len(nusc_obj.scene)):
         nusc = NuscData(nusc_obj, i)
         mapName = nusc.get_map()
-        nuscMap = NuScenesMap(
-            dataroot=f"data/nuscenes/{args.version}",
-            map_name=mapName,
-        )
-        scene2data[nusc_obj.scene[i]["name"]] = (nusc, nuscMap)
+        if mapName not in maps:
+            nuscMap = NuScenesMap(
+                dataroot=f"data/nuscenes/{args.version}",
+                map_name=mapName,
+            )
+            maps[mapName] = nuscMap
+        else:
+            nuscMap = maps[mapName]
+        scene2map[nusc_obj.scene[i]["name"]] = mapName
 
     colDict = {
         Condition.HO: "red",
         Condition.RE: "blue",
         Condition.LC: "green",
-        Condition.JC: "yellow",
+        Condition.JC: "orange",
         Condition.LTAP: "purple",
     }
 
+    all_atks = collections.defaultdict(list)
     for scene, datasets in dsdict.items():
         print(scene, len(datasets))
-        drawer = Drawer(*scene2data[scene])
+        mapName = scene2map[scene]
+        drawer = Drawer(maps[mapName])
         atks = list()
         for dataset in datasets:
             atks.append((dataset.atk, colDict[dataset.cond]))
-        out = os.path.join(data_dir, "analyse", "atks", f"{scene}.png")
+
+        all_atks[mapName].extend(atks)
+
+        out = os.path.join(data_dir, "analyse", "box", "scenes", f"{scene}.png")
         os.makedirs(os.path.dirname(out), exist_ok=True)
-        drawer.plot_atks(atks, out)
+        drawer.plot_atks(atks, out, no_box=False)
+
+        out = os.path.join(data_dir, "analyse", "nobox", "scenes", f"{scene}.png")
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        drawer.plot_atks(atks, out, no_box=True)
+
+    for mapName, atks in all_atks.items():
+        print(mapName, len(atks))
+        drawer = Drawer(maps[mapName])
+
+        out = os.path.join(data_dir, "analyse", "box", "maps", f"{mapName}.png")
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        drawer.plot_atks(atks, out, no_box=False)
 
 
 if __name__ == "__main__":
