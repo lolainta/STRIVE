@@ -9,12 +9,12 @@ from nuscenes.map_expansion.map_api import NuScenesMap
 from numpy import rad2deg
 from random import randint
 from copy import deepcopy
+from tqdm import tqdm
 
 
 class Generator:
     def __init__(self, nuscData: NuscData) -> None:
         self.nuscData = nuscData
-        self.verbose = False
 
     def fetch_data(self):
         self.nuscData.fetch_data()
@@ -56,8 +56,34 @@ class Generator:
         ret.rotate(180)
         return ret
 
-    def gen_by_inst(self, inst_anns: list, ego_data: Datalist) -> list:
-        npc_data: Datalist = self.nuscData.get_npc_data(inst_anns)
+    def encapsulate_collision(
+        self,
+        idx: str,
+        atk: list,
+        cond: Condition,
+        inst: dict,
+        ego: Datalist,
+        inst_anns: list,
+    ) -> ColDataset:
+        ego_data: Datalist = deepcopy(ego)
+        col = ColDataset(
+            self.nuscData.scene,
+            inst,
+            cond,
+        )
+        col.set_ego(ego_data)
+        col.set_atk(atk)
+        for npcs in inst_anns:
+            if npcs is not inst_anns:
+                col.add_npc(self.nuscData.get_npc_data(npcs), npcs[0]["instance_token"])
+        col.idx = idx
+        timelist = col.atk.gen_timelist()
+        col.trim(timelist)
+        col.ego.gen_timelist()
+        assert col.atk.timelist == col.ego.timelist
+        return col
+
+    def gen_by_inst(self, npc_data: Datalist, ego_data: Datalist) -> list:
         npc_data.compile()
         ops = {
             self.LLC: 1,
@@ -67,10 +93,10 @@ class Generator:
             self.RearEnd: 2,
             self.HeadOn: 1,
         }
-
         ret = list()
         for tid, last_frame in enumerate(self.nuscData.times):
-            if last_frame - self.nuscData.times[0] < 8000000:
+            ttc = last_frame - self.nuscData.times[0]
+            if ttc < 10 * 1000000 or ttc > 15 * 1000000:
                 continue
             ego_final: Data = ego_data[tid]
             for fid, op in enumerate(ops.items()):
@@ -126,67 +152,36 @@ class Generator:
     def gen_all(self) -> list:
         ret = list()
         inst_tks: list = self.nuscData.instances
-        inst_anns: list = [
-            self.nuscData.get_annotations(self.nuscData.get("instance", tk))
-            for tk in inst_tks
-        ]
+        insts: list = [self.nuscData.get("instance", tk) for tk in inst_tks]
+        inst_anns: list = [self.nuscData.get_annotations(inst) for inst in insts]
+        npcs_data: list = [self.nuscData.get_npc_data(anns) for anns in inst_anns]
         assert len(inst_tks) == len(inst_anns)
-        for anns in inst_anns:
+        assert len(inst_tks) == len(insts)
+        assert len(inst_tks) == len(npcs_data)
+        for inst, npc_data in zip(insts, npcs_data):
             ego_data: Datalist = self.nuscData.get_ego_data()
             ego_data.compile()
-            res = self.gen_by_inst(anns, ego_data)
+            res = self.gen_by_inst(npc_data, ego_data)
             for idx, r, cond in res:
-                new_ego = deepcopy(ego_data)
-                col = ColDataset(
-                    self.nuscData.scene,
-                    self.nuscData.get("instance", anns[0]["instance_token"]),
-                    cond,
+                col = self.encapsulate_collision(
+                    idx, r, cond, inst, ego_data, inst_anns
                 )
-                col.set_ego(new_ego)
-                col.set_atk(r)
-                for npcs in inst_anns:
-                    if npcs is not anns:
-                        col.add_npc(
-                            self.nuscData.get_npc_data(npcs), npcs[0]["instance_token"]
-                        )
-                col.idx = idx
-                timelist = col.atk.gen_timelist()
-                col.trim(timelist)
-                col.ego.gen_timelist()
-                assert col.atk.timelist == col.ego.timelist
-                ret.append(col)
-        if self.verbose:
-            print(f"scene[{self.nuscData.scene_id}] Generated {len(ret)} data")
+                if col.filter():
+                    ret.append(col)
         return ret
 
     def filter_by_vel_acc(self, dataCluster: list) -> list:
         ret = [ds for ds in dataCluster if ds.filter_by_vel_acc()]
-        if self.verbose:
-            print(
-                f"scene[{self.nuscData.scene_id}] Filtered {len(dataCluster) - len(ret)} data by vel and acc"
-            )
         return ret
 
     def filter_by_map(self, dataCluster: list, nuscMap: NuScenesMap) -> list:
         ret = [ds for ds in dataCluster if ds.filter_by_map(nuscMap)]
-        if self.verbose:
-            print(
-                f"scene[{self.nuscData.scene_id}] Filtered {len(dataCluster) - len(ret)} data by map"
-            )
         return ret
 
     def filter_by_collision(self, dataCluster: list) -> list:
         ret = [ds for ds in dataCluster if ds.filter_by_collision()]
-        if self.verbose:
-            print(
-                f"scene[{self.nuscData.scene_id}] Filtered {len(dataCluster) - len(ret)} data by collision"
-            )
         return ret
 
     def filter_by_curvature(self, dataCluster: list) -> list:
         ret = [ds for ds in dataCluster if ds.filter_by_curvature()]
-        if self.verbose:
-            print(
-                f"scene[{self.nuscData.scene_id}] Filtered {len(dataCluster) - len(ret)} data by curvature"
-            )
         return ret

@@ -13,6 +13,7 @@ class ColDataset:
         self.npc_tks: list = list()
         self.atk: Datalist = list()
         self.cond: Condition = cond
+        self.idx = None
 
     def set_ego(self, ego: Datalist) -> None:
         self.ego: Datalist = ego
@@ -30,6 +31,15 @@ class ColDataset:
             npc.trim(timelist)
         self.atk.trim(timelist)
         self.timelist = timelist
+
+    def filter(self) -> bool:
+        if not self.filter_by_vel_acc():
+            return False
+        if not self.filter_by_collision():
+            return False
+        if not self.filter_by_curvature():
+            return False
+        return True
 
     def filter_by_vel_acc(self) -> bool:
         self.atk.compile()

@@ -36,7 +36,6 @@ class NuscData:
         ret = set()
         for inst in self.nusc.instance:
             ann = self.nusc.get("sample_annotation", inst["first_annotation_token"])
-
             sample = self.nusc.get("sample", ann["sample_token"])
             if sample["scene_token"] == self.scene["token"]:
                 if self.check(inst):
