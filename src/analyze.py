@@ -14,7 +14,7 @@ from generation.Condition import Condition
 
 def parse_cfg():
     parser = argparse.ArgumentParser(
-        prog="python3 src/atk_distribution.py",
+        prog="python3 src/analyze.py",
         description="Analyse the distribution of attacker",
     )
     parser.add_argument(
@@ -27,8 +27,7 @@ def parse_cfg():
     parser.add_argument(
         "-v",
         "--version",
-        required=True,
-        default="mini",
+        default="trainval",
         choices=["mini", "trainval"],
         help="Dataset version, mini or trainval",
     )

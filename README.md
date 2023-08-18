@@ -36,12 +36,17 @@ Note these models and scenarios were derived from the nuScenes dataset and are t
 
 ## Generating Collision Dataset
 ```
-python3 src/generate_collision_data.py --record data/hcis/v2.1 -v -d v1.0-trainval -
+python3 src/generate_collision_data.py -d data/hcis/v3.9/ -v trainval
+```
+
+## Analyze Generated Collision Dataset
+```
+python3 src/analyze.py -d data/hcis/v3.9/ -v trainval
 ```
 
 ## Visualize Generated Collision Dataset
 ```
-python3 src/visualize.py -d data/hcis/v2.1/ -v trainval
+python3 src/visualize.py -d data/hcis/v3.9/ -v trainval -e
 ```
 
 ## Training and Testing Traffic Model

@@ -10,6 +10,36 @@ from tqdm import trange
 import random
 
 
+def parse_cfg():
+    parser = argparse.ArgumentParser(
+        prog="python3 src/visualize.py",
+        description="Visualize generated dataset from given pickle file",
+    )
+    parser.add_argument(
+        "-d",
+        "--dir",
+        required=True,
+        default=None,
+        help="Dataset folder",
+    )
+    parser.add_argument(
+        "-v",
+        "--version",
+        default="trainval",
+        choices=["mini", "trainval"],
+        help="Data version",
+    )
+    parser.add_argument(
+        "-e",
+        "--encode",
+        action="store_true",
+        help="Encode with H.264",
+    )
+    args = parser.parse_args()
+    print(args)
+    return args
+
+
 def show(path: str, out_dir, nuscs, encode):
     out = os.path.join(out_dir, path.replace("/", "_")[12:-7])
     print(f"Loading: {path}", flush=True)
@@ -36,33 +66,7 @@ def sem_show(sem: Semaphore, path: str, out_dir, nuscs, encode):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        prog="python3 src/visualize.py",
-        description="Visualize generated dataset from given pickle file",
-    )
-    parser.add_argument(
-        "-d",
-        "--dir",
-        required=True,
-        default=None,
-        help="Dataset folder",
-    )
-    parser.add_argument(
-        "-v",
-        "--version",
-        required=True,
-        default="mini",
-        choices=["mini", "trainval"],
-        help="Data version",
-    )
-    parser.add_argument(
-        "-e",
-        "--encode",
-        action="store_true",
-        help="Encode with H.264",
-    )
-    args = parser.parse_args()
-    print(args)
+    args = parse_cfg()
     nusc_obj = NuScenes(
         version=f"v1.0-{args.version}",
         dataroot=f"data/nuscenes/{args.version}",
