@@ -86,11 +86,11 @@ class Generator:
     def gen_by_inst(self, npc_data: Datalist, ego_data: Datalist) -> list:
         npc_data.compile()
         ops = {
-            self.LLC: 1,
-            self.RLC: 1,
+            self.LLC: 2,
+            self.RLC: 2,
             self.LSide: 12,
             self.RSide: 12,
-            self.RearEnd: 2,
+            self.RearEnd: 4,
             self.HeadOn: 1,
         }
         ret = list()

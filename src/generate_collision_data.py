@@ -6,44 +6,65 @@ from nuscenes.nuscenes import NuScenes
 from nuscenes.map_expansion.map_api import NuScenesMap
 from generation.Generator import Generator
 from generation.NuscData import NuscData
+from generation.Dataset import ColDataset
 from tqdm import trange
 
 
-def gen_scene(gen: Generator, map: NuScenesMap, args):
+def parse_cfg():
+    parser = argparse.ArgumentParser(
+        prog="python3 src/generate_collision_data.py",
+        description="Generate data from given nuscene dataset and collision type",
+    )
+    parser.add_argument(
+        "-d",
+        "--dir",
+        required=True,
+        default=None,
+        help="Dataset folder",
+    )
+    parser.add_argument(
+        "-v",
+        "--version",
+        default="trainval",
+        choices=["mini", "trainval"],
+        help="Dataset version, mini or trainval",
+    )
+    args = parser.parse_args()
+    print(args)
+    return args
+
+
+def gen_scene(gen: Generator, map: NuScenesMap, data_dir: str):
     gen.fetch_data()
     dataCluster = gen.gen_all()
     validData = gen.filter_by_map(dataCluster, map)
     osz = len(dataCluster)
     sz = len(validData)
     fsz = osz - sz
-    if args.verbose:
-        print(f"scene[{gen.nuscData.scene_id}] {osz}-{fsz}={sz} data generated")
-    if args.record != "" and sz > 0:
-        for idx, dataset in enumerate(validData):
-            out_dir = os.path.join(
-                args.record,
-                args.dataset.split("-")[-1],
-                dataset.cond.name,
-                gen.nuscData.scene["name"],
-            )
-            fname = f"{dataset.idx}_{dataset.inst['token']}.pickle"
-            os.makedirs(out_dir, exist_ok=True)
-            with open(os.path.join(out_dir, fname), "wb") as f:
-                pickle.dump(dataset, f, protocol=pickle.HIGHEST_PROTOCOL)
-        if args.verbose:
-            print(f"scene[{gen.nuscData.scene_id}] {sz} data recorded")
+    print(f"scene[{gen.nuscData.scene_id}] {osz}-{fsz}={sz} data generated")
+    for dataset in validData:
+        dataset: ColDataset
+        out_dir = os.path.join(
+            data_dir,
+            gen.nuscData.get_map(),
+            dataset.cond.name,
+            gen.nuscData.scene["name"],
+        )
+        fname = f"{dataset.idx}_{dataset.inst['token']}.pickle"
+        os.makedirs(out_dir, exist_ok=True)
+        with open(os.path.join(out_dir, fname), "wb") as f:
+            pickle.dump(dataset, f, protocol=pickle.HIGHEST_PROTOCOL)
+    print(f"scene[{gen.nuscData.scene_id}] {sz} data recorded")
 
 
-def generate(sem: Semaphore, gen: Generator, map: NuScenesMap, args):
+def generate(sem: Semaphore, gen: Generator, map: NuScenesMap, data_dir: str):
     sem.acquire()
     print(f"scene[{gen.nuscData.scene_id}] Start")
-    gen_scene(gen, map, args)
+    gen_scene(gen, map, data_dir)
     print(f"scene[{gen.nuscData.scene_id}] Done")
     os.close(
         os.open(
-            os.path.join(
-                args.record, args.dataset.split("-")[-1], gen.nuscData.scene["name"]
-            ),
+            os.path.join(data_dir, "done", gen.nuscData.scene["name"]),
             os.O_RDONLY | os.O_CREAT,
         )
     )
@@ -53,43 +74,38 @@ def generate(sem: Semaphore, gen: Generator, map: NuScenesMap, args):
 def run(args):
     print("Loading Data...")
     nusc = NuScenes(
-        version=args.dataset,
-        dataroot=f"data/nuscenes/{args.dataset.split('-')[-1]}",
-        verbose=args.verbose,
+        version=f"v1.0-{args.version}",
+        dataroot=f"data/nuscenes/{args.version}",
+        verbose=True,
     )
     maps = dict()
     nuscs = list()
+    data_dir = os.path.join(args.dir, args.version)
+    maps = [
+        "singapore-onenorth",
+        "singapore-hollandvillage",
+        "singapore-queenstown",
+        "boston-seaport",
+    ]
     for i in trange(len(nusc.scene)):
-        if args.record != "" and os.path.exists(
-            os.path.join(
-                args.record, args.dataset.split("-")[-1], nusc.scene[i]["name"]
-            )
-        ):
-            print(f"scene[{i}] already generated")
+        if os.path.exists(os.path.join(data_dir, "done", nusc.scene[i]["name"])):
             continue
         nuscData = NuscData(nusc, i)
         mapName = nuscData.get_map()
-
-        if mapName != "singapore-onenorth":
-            continue
-
-        if mapName not in maps:
-            nuscMap = NuScenesMap(
-                dataroot=f"data/nuscenes/{args.dataset.split('-')[-1]}",
-                map_name=mapName,
-            )
-            maps[mapName] = nuscMap
-        else:
-            nuscMap = maps[mapName]
+        assert mapName in maps, mapName
+        nuscMap = NuScenesMap(
+            dataroot=f"data/nuscenes/{args.version}",
+            map_name=mapName,
+        )
         nuscs.append((nuscData, nuscMap))
 
     print(f"{len(nuscs)} scenes to generate")
-    os.makedirs(os.path.join(args.record, args.dataset.split("-")[-1]), exist_ok=True)
+    os.makedirs(data_dir, exist_ok=True)
     plist = list()
-    sem = Semaphore(10)
+    sem = Semaphore(os.cpu_count())
     for data, map in nuscs:
         gen: Generator = Generator(data)
-        p = Process(target=generate, args=(sem, gen, map, args))
+        p = Process(target=generate, args=(sem, gen, map, data_dir))
         p.start()
         plist.append(p)
     for p in plist:
@@ -98,24 +114,7 @@ def run(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        prog="python3 src/generation/main.py",
-        description="Generate data from given nuscene dataset and collision type",
-    )
-    parser.add_argument(
-        "-d",
-        "--dataset",
-        choices=["v1.0-mini", "v1.0-trainval"],
-        default="v1.0-mini",
-        help="Nuscene dataset version",
-    )
-    parser.add_argument(
-        "--record",
-        default="",
-        help="Specify the path to store the generated data (create if not exists)",
-    )
-    parser.add_argument("-v", "--verbose", action="store_true", help="Show log")
-    args = parser.parse_args()
+    args = parse_cfg()
     run(args)
 
 

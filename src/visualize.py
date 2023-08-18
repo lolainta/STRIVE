@@ -20,7 +20,7 @@ def show(path: str, out_dir, nuscs, encode):
     for nuscData, nuscMap in nuscs:
         if nuscData.scene["name"] == dataset.scene["name"]:
             found = True
-            plt = Drawer(nuscData, nuscMap)
+            plt = Drawer(nuscMap)
             plt.plot_dataset(dataset, out)
             plt.export_mp4(out, encode)
             plt.close()
