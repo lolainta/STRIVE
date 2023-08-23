@@ -1,6 +1,6 @@
-from datasets.collision_dataset import CollisionDataset
 from generation.Dataset import ColDataset
 from generation.Condition import Condition
+from generation.Data import Data
 from argparse import ArgumentParser
 import os
 import pickle
@@ -33,7 +33,7 @@ def parse_cfg():
     return args
 
 
-def write_data_row(writer, data, scene, identity):
+def write_data_row(writer, data: Data, scene: str, identity: str):
     writer.writerow(
         [
             scene,
@@ -48,7 +48,7 @@ def write_data_row(writer, data, scene, identity):
 
 
 def export(d: ColDataset, path: str):
-    d.ego.gen_velocity()
+    d.ego.grad()
     with open(path, "w", newline="\n") as csvfile:
         writer = csv.writer(csvfile, delimiter=",")
         writer.writerow(["scene", "timestamp", "track", "x", "y", "v", "yaw"])
@@ -57,7 +57,7 @@ def export(d: ColDataset, path: str):
         for data in d.atk.datalist:
             write_data_row(writer, data, d.scene["name"], d.inst["token"])
         for npc_tk, npc in zip(d.npc_tks, d.npcs):
-            npc.gen_velocity()
+            npc.grad()
             for data in npc.datalist:
                 write_data_row(writer, data, d.scene["name"], npc_tk)
 
@@ -78,12 +78,12 @@ def main():
     for path in tqdm.tqdm(pickles):
         with open(path, "rb") as f:
             dataset: ColDataset = pickle.load(f)
-            export(
-                dataset,
-                os.path.join(
-                    target, f"{root.replace('/','_')}_{dataset.inst['token']}"
-                ),
-            )
+        export(
+            dataset,
+            os.path.join(
+                target, f"{root.replace('/','_')}_{dataset.inst['token']}"
+            ),
+        )
 
 
 if __name__ == "__main__":

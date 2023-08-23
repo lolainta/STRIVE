@@ -1,6 +1,6 @@
 from generation.Data import Data
 from generation.Transform import Transform
-from numpy import cos, sin
+from numpy import cos, sin, gradient
 
 
 class Datalist:
@@ -18,8 +18,7 @@ class Datalist:
 
     def compile(self) -> None:
         self.elapse_time = (self[-1].timestamp - self[0].timestamp) / 1e6
-        self.gen_velocity()
-        self.gen_accelerate()
+        self.grad()
 
     def trim(self, timelist: list) -> None:
         newlist = list()
@@ -35,27 +34,38 @@ class Datalist:
         self.timelist = ret
         return ret
 
-    def gen_velocity(self) -> None:
-        dxdt = list()
-        for i in range(len(self.datalist) - 1):
-            sub: Data = self.datalist[i + 1] - self.datalist[i]
-            dis = sub.transform.length()
-            dxdt.append(dis / sub.timestamp * 1e6)
-        self.datalist[0].set_velocity(dxdt[0])
-        self.datalist[-1].set_velocity(dxdt[-1])
-        for i in range(1, len(self.datalist) - 1):
-            self.datalist[i].set_velocity((dxdt[i - 1] + dxdt[i]) / 2)
-
-    def gen_accelerate(self) -> None:
-        dvdt = list()
-        for i in range(len(self.datalist) - 1):
-            sub: float = self.datalist[i + 1].velocity - self.datalist[i].velocity
-            dt = self.datalist[i + 1].timestamp - self.datalist[i].timestamp
-            dvdt.append(sub / dt * 1e6)
-        self.datalist[0].set_accelerate(dvdt[0])
-        self.datalist[-1].set_accelerate(dvdt[-1])
-        for i in range(1, len(self.datalist) - 1):
-            self.datalist[i].set_accelerate((dvdt[i - 1] + dvdt[i]) / 2)
+    def grad(self) -> None:
+        xs = [d.transform.translation.x for d in self.datalist]
+        ys = [d.transform.translation.y for d in self.datalist]
+        zs = [d.transform.translation.z for d in self.datalist]
+        if len(xs) == 0:
+            dx = []
+            dy = []
+            dz = []
+            ddx = []
+            ddy = []
+            ddz = []
+        elif len(xs) == 1:
+            dx = [0]
+            dy = [0]
+            dz = [0]
+            ddx = [0]
+            ddy = [0]
+            ddz = [0]
+        else:
+            timestamps = [d.timestamp/1e6 for d in self.datalist]
+            dx = gradient(xs, timestamps)
+            dy = gradient(ys, timestamps)
+            dz = gradient(zs, timestamps)
+            ddx = gradient(dx, timestamps)
+            ddy = gradient(dy, timestamps)
+            ddz = gradient(dz, timestamps)
+        for i in range(len(self.datalist)):
+            self.datalist[i].set_velocity((dx[i] ** 2 + dy[i] ** 2 + dz[i] ** 2) ** 0.5)
+            self.datalist[i].set_accelerate(
+                (ddx[i] ** 2 + ddy[i] ** 2 + ddz[i] ** 2) ** 0.5
+            )
+        return
 
     def get_max_curvature(self) -> float:
         max_curvature = 0
