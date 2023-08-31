@@ -80,9 +80,7 @@ def main():
             dataset: ColDataset = pickle.load(f)
         export(
             dataset,
-            os.path.join(
-                target, f"{root.replace('/','_')}_{dataset.inst['token']}"
-            ),
+            os.path.join(target, f"{root.replace('/','_')}_{dataset.inst['token']}"),
         )
 
 

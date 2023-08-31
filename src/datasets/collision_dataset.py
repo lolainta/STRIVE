@@ -19,6 +19,7 @@ from nuscenes.utils.splits import create_splits_scenes
 
 from generation.Dataset import ColDataset
 from generation.Condition import Condition
+from generation.Datalist import Datalist
 import sys, os
 
 cur_file_path = os.path.dirname(os.path.realpath(__file__))
@@ -435,7 +436,7 @@ class CollisionDataset(Dataset):
 
     def compile_data(self):
         scene2data = dict()
-        for data in self.col_data:
+        for data in tqdm(self.col_data):
             data: ColDataset
             scene = data.scene["name"]
             index = f"{data.scene['name']}_{data.inst['token']}_{data.idx}"
@@ -466,15 +467,17 @@ class CollisionDataset(Dataset):
                 },
             }
             for npc_tk, npc in zip(data.npc_tks, data.npcs):
+                npc: Datalist
                 fst_npc_tk = data.inst["first_annotation_token"]
                 ann = self.nusc.get("sample_annotation", fst_npc_tk)
+                if len(npc) == 0:
+                    continue
                 scene2data[index][npc_tk] = {
                     "traj": npc.serialize(),
                     "w": ann["size"][0],
                     "l": ann["size"][1],
                     "k": cat,
                 }
-        print(len(scene2data))
         return self.post_process(scene2data)
 
     def post_process(self, data):

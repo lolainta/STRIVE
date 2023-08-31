@@ -53,7 +53,7 @@ class Datalist:
             ddy = [0]
             ddz = [0]
         else:
-            timestamps = [d.timestamp/1e6 for d in self.datalist]
+            timestamps = [d.timestamp / 1e6 for d in self.datalist]
             dx = gradient(xs, timestamps)
             dy = gradient(ys, timestamps)
             dz = gradient(zs, timestamps)

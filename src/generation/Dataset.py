@@ -9,9 +9,9 @@ class ColDataset:
         self.scene = scene
         self.inst = inst
         self.ego: Datalist = list()
-        self.npcs: Datalist = list()
-        self.npc_tks: list = list()
-        self.atk: Datalist = list()
+        self.npcs: list[Datalist] = list()
+        self.npc_tks: list[str] = list()
+        self.atk: list[Datalist] = list()
         self.cond: Condition = cond
         self.idx = None
 
