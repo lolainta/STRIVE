@@ -149,7 +149,7 @@ def run_one_epoch(
 
     empty_cache = False
     for i, data in enumerate(pbar):
-        scene_graph, map_idx, coll_type = data
+        scene_graph, map_idx, coll_type, ttc = data
         pred = loss_dict = None
         if empty_cache:
             empty_cache = False
@@ -159,6 +159,7 @@ def run_one_epoch(
             scene_graph = scene_graph.to(device)
             map_idx = map_idx.to(device)
             coll_type = coll_type.to(device)
+            ttc = ttc.to(device)
             B = map_idx.size(0)
 
             do_sample = loss_fn.loss_weights["coll_env_prior"] > 0.0
@@ -168,6 +169,7 @@ def run_one_epoch(
                 map_env,
                 future_sample=do_sample,
                 coll_type=coll_type,
+                ttc=ttc,
             )
 
             loss_dict = loss_fn(scene_graph, pred, map_idx=map_idx, map_env=map_env)

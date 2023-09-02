@@ -710,9 +710,13 @@ class CollisionDataset(Dataset):
                             challenge_inst_samp_list[inst_samp] = False
 
             if not self.use_challenge_splits:
-                # update data map
+                # update data map]
                 scene_seq = [
-                    (scene, data[scene]["condition"], start_idx)
+                    (
+                        scene,
+                        data[scene]["condition"],
+                        start_idx,
+                    )
                     for start_idx in range(0, T - self.seq_len, self.seq_interval)
                 ]
                 seq_map.extend(scene_seq)
@@ -735,6 +739,7 @@ class CollisionDataset(Dataset):
         eidx = sidx + self.seq_len
         midx = sidx + self.npast
         _, map_idx = self.scene2map[scene_name.split("_")[0]]
+        ttc = int(scene_name.split("_")[2].split("-")[2]) / 2
 
         # NOTE only keep an agent in the sequence if it has an annotation
         #       at last frame of the past.
@@ -749,6 +754,7 @@ class CollisionDataset(Dataset):
         past_vis = [ego_data["is_vis"][sidx:midx]]
         fut_vis = [ego_data["is_vis"][midx:eidx]]
         coll_type_list = [col_type_one_hot]
+        ttc_list = [ttc]
         if self.use_challenge_splits:
             # prepend data for the agent we're making a prediction for
             # so ego is not at 0, challenge data is
@@ -784,6 +790,7 @@ class CollisionDataset(Dataset):
             past_vis.append(agent_data["is_vis"][sidx:midx])
             fut_vis.append(agent_data["is_vis"][midx:eidx])
             coll_type_list.append(col_type_one_hot)
+            ttc_list.append(ttc)
 
         past = torch.Tensor(np.stack(past, axis=0))
         future = torch.Tensor(np.stack(future, axis=0))
@@ -792,6 +799,7 @@ class CollisionDataset(Dataset):
         past_vis = torch.Tensor(np.stack(past_vis, axis=0))
         fut_vis = torch.Tensor(np.stack(fut_vis, axis=0))
         coll_type_vec = torch.Tensor(np.stack(coll_type_list, axis=0))
+        ttc_list = torch.Tensor(np.stack(ttc_list, axis=0))
 
         # normalize
         past_gt = self.normalizer.normalize(past)  # gt past (no noise)
@@ -845,4 +853,4 @@ class CollisionDataset(Dataset):
         }
         scene_graph = Graph(**graph_prop_dict)
 
-        return scene_graph, map_idx, coll_type_vec
+        return scene_graph, map_idx, coll_type_vec, ttc_list

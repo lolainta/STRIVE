@@ -181,6 +181,7 @@ class TrafficModel(nn.Module):
             + self.map_feat_out_size
             + self.NC
             + self.NCond
+            + 1  # TTC
         )
         decode_in_size = decode_in_size + self.att_feat_size
         self.decoder_net = SceneInteractionNet(
@@ -223,6 +224,7 @@ class TrafficModel(nn.Module):
         map_idx,
         map_env,
         coll_type,
+        ttc,
         use_post_mean=False,
         future_sample=False,
     ):
@@ -258,7 +260,7 @@ class TrafficModel(nn.Module):
             # sample from posterior in training
             z_samp = self.rsample(post_mu, post_var)
         future_pred = self.decoder(
-            scene_graph, map_feat, past_feat, z_samp, map_idx, map_env, coll_type
+            scene_graph, map_feat, past_feat, z_samp, map_idx, map_env, coll_type, ttc
         )  # (NA, FT, 4)
 
         net_out = {
@@ -277,6 +279,7 @@ class TrafficModel(nn.Module):
                 map_idx,
                 map_env,
                 coll_type,
+                ttc,
             )  # (NA, FT, 4)
             net_out["future_samp"] = future_samp
 
@@ -393,6 +396,7 @@ class TrafficModel(nn.Module):
         map_env,
         num_samples,
         coll_type,
+        ttc,
         include_mean=False,
         nfuture=None,
     ):
@@ -438,6 +442,7 @@ class TrafficModel(nn.Module):
             map_idx,
             map_env,
             coll_type,
+            ttc,
             nfuture=nfuture,
         )  # (NA, NS, FT, 4)
         net_out = {
@@ -697,6 +702,7 @@ class TrafficModel(nn.Module):
         map_idx,
         map_env,
         coll_type,
+        ttc,
         ext_future=None,
         nfuture=None,
     ):
@@ -723,6 +729,7 @@ class TrafficModel(nn.Module):
             map_idx,
             map_env,
             coll_type,
+            ttc,
             ext_future=ext_future,
             nfuture=nfuture,
         )
@@ -736,6 +743,7 @@ class TrafficModel(nn.Module):
         map_idx,
         map_env,
         coll_type,
+        ttc,
         ext_future=None,
         nfuture=None,
     ):
@@ -799,9 +807,10 @@ class TrafficModel(nn.Module):
         for t in range(FT):
             # update scene graph node features with z + cur_past_feat + cur_map_feat + sem_class
             coll_type = coll_type.unsqueeze(1).reshape(NA, 5)
+            ttc = ttc.unsqueeze(1).reshape(NA, 1)
 
             decoder_in_feat = torch.cat(
-                [cur_past_feat, cur_map_feat, cur_sem, z, coll_type], dim=-1
+                [cur_past_feat, cur_map_feat, cur_sem, z, coll_type, ttc], dim=-1
             )
             decoder_in_feat = torch.cat([decoder_in_feat, cur_lw], dim=-1)
             scene_graph.x = decoder_in_feat
