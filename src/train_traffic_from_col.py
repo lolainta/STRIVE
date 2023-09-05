@@ -256,6 +256,7 @@ def main():
         )
 
     # create output directory and logging
+    cfg.out = os.path.join(cfg.out, time.strftime("%Y_%m_%d_%H_%M_%S"))
     mkdir(cfg.out)
     log_path = os.path.join(cfg.out, "train_log.txt")
     Logger.init(log_path)
