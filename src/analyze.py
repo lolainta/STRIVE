@@ -10,7 +10,7 @@ from generation.NuscData import NuscData
 from tqdm import trange
 from nuscenes.map_expansion.map_api import NuScenesMap
 from generation.Condition import Condition
-
+import json
 
 def parse_cfg():
     parser = argparse.ArgumentParser(
@@ -56,7 +56,7 @@ def main():
         dur = dataset.ego.datalist[-1].timestamp - dataset.ego.datalist[0].timestamp
         dur = dur // 500000 / 2
         res[dur] += 1
-    print({k: res[k] for k in sorted(res)})
+    print(json.dumps({k: res[k] for k in sorted(res)}))
 
     dsdict = collections.defaultdict(list)
     for dataset in dataCluster:

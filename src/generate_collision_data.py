@@ -29,6 +29,13 @@ def parse_cfg():
         choices=["mini", "trainval"],
         help="Dataset version, mini or trainval",
     )
+    parser.add_argument(
+        "-j",
+        "--jobs",
+        type=int,
+        default=os.cpu_count(),
+        help="Number of jobs to run in parallel",
+    )
     args = parser.parse_args()
     print(args)
     return args
@@ -98,11 +105,13 @@ def run(args):
             map_name=mapName,
         )
         nuscs.append((nuscData, nuscMap))
+        if len(nuscs) >= 200:
+            break
 
     print(f"{len(nuscs)} scenes to generate")
-    os.makedirs(data_dir, exist_ok=True)
+    os.makedirs(os.path.join(data_dir, "done"), exist_ok=True)
     plist = list()
-    sem = Semaphore(os.cpu_count())
+    sem = Semaphore(args.jobs)
     for data, map in nuscs:
         gen: Generator = Generator(data)
         p = Process(target=generate, args=(sem, gen, map, data_dir))
