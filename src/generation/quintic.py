@@ -68,7 +68,7 @@ class QuinticPolynomial:
 
 
 def quintic_polynomials_planner(
-    src: Datalist, sv, sa, dst: Transform, gv, ga, timelist: list
+    src: Transform, sv, sa, dst: Transform, gv, ga, timelist: list
 ) -> Datalist:
     ret = Datalist()
     sx = src.translation.x

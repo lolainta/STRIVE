@@ -8,10 +8,10 @@ class ColDataset:
     def __init__(self, scene: str, inst: dict, cond: Condition) -> None:
         self.scene = scene
         self.inst = inst
-        self.ego: Datalist = list()
+        self.ego: Datalist
         self.npcs: list[Datalist] = list()
         self.npc_tks: list[str] = list()
-        self.atk: list[Datalist] = list()
+        self.atk: Datalist
         self.cond: Condition = cond
         self.idx = None
 

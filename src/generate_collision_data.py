@@ -64,7 +64,7 @@ def gen_scene(gen: Generator, map: NuScenesMap, data_dir: str):
     print(f"scene[{gen.nuscData.scene_id}] {sz} data recorded")
 
 
-def generate(sem: Semaphore, gen: Generator, map: NuScenesMap, data_dir: str):
+def generate(sem, gen: Generator, map: NuScenesMap, data_dir: str):
     sem.acquire()
     print(f"scene[{gen.nuscData.scene_id}] Start")
     gen_scene(gen, map, data_dir)
