@@ -7,10 +7,11 @@ import tqdm
 from generation.Drawer import Drawer
 from nuscenes.nuscenes import NuScenes
 from generation.NuscData import NuscData
-from tqdm import trange
+from tqdm import trange, tqdm
 from nuscenes.map_expansion.map_api import NuScenesMap
 from generation.Condition import Condition
 import json
+
 
 def parse_cfg():
     parser = argparse.ArgumentParser(
@@ -39,18 +40,22 @@ def parse_cfg():
 def main():
     args = parse_cfg()
     data_dir = os.path.join(args.dir, args.version)
-    pickles = list()
-    for root, dir, files in os.walk(data_dir):
-        for file in files:
-            if file[-7:] == ".pickle":
-                pickles.append(os.path.join(root, file))
-    print(f"Total: {len(pickles)}")
-    dataCluster = list()
-    for path in tqdm.tqdm(pickles):
-        with open(path, "rb") as f:
-            dataset: ColDataset = pickle.load(f)
-            dataCluster.append(dataset)
 
+    dataCluster = list()
+    if os.path.exists("dataCluster.pickle"):
+        dataCluster = pickle.load(open("dataCluster.pickle", "rb"))
+    else:
+        pickles = list()
+        for root, dir, files in os.walk(data_dir):
+            for file in files:
+                if file[-7:] == ".pickle":
+                    pickles.append(os.path.join(root, file))
+        for path in tqdm(pickles, desc="Loading", miniters=20, mininterval=0.5):
+            with open(path, "rb") as f:
+                dataset: ColDataset = pickle.load(f)
+                dataCluster.append(dataset)
+        pickle.dump(dataCluster, open("dataCluster.pickle", "wb"))
+    print(f"Total: {len(dataCluster)}")
     res = collections.defaultdict(int)
     for dataset in dataCluster:
         dur = dataset.ego.datalist[-1].timestamp - dataset.ego.datalist[0].timestamp
@@ -92,8 +97,8 @@ def main():
     }
 
     all_atks = collections.defaultdict(list)
-    for scene, datasets in dsdict.items():
-        print(scene, len(datasets))
+    for scene, datasets in tqdm(dsdict.items()):
+        tqdm.write(f"{scene}: {len(datasets)}")
         mapName = scene2map[scene]
         drawer = Drawer(maps[mapName])
         atks = list()
