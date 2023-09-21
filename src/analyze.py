@@ -42,19 +42,15 @@ def main():
     data_dir = os.path.join(args.dir, args.version)
 
     dataCluster = list()
-    if os.path.exists("dataCluster.pickle"):
-        dataCluster = pickle.load(open("dataCluster.pickle", "rb"))
-    else:
-        pickles = list()
-        for root, dir, files in os.walk(data_dir):
-            for file in files:
-                if file[-7:] == ".pickle":
-                    pickles.append(os.path.join(root, file))
-        for path in tqdm(pickles, desc="Loading", miniters=20, mininterval=0.5):
-            with open(path, "rb") as f:
-                dataset: ColDataset = pickle.load(f)
-                dataCluster.append(dataset)
-        pickle.dump(dataCluster, open("dataCluster.pickle", "wb"))
+    pickles = list()
+    for root, dir, files in os.walk(data_dir):
+        for file in files:
+            if file[-7:] == ".pickle":
+                pickles.append(os.path.join(root, file))
+    for path in tqdm(pickles, desc="Loading", miniters=20, mininterval=0.5):
+        with open(path, "rb") as f:
+            dataset: ColDataset = pickle.load(f)
+            dataCluster.append(dataset)
     print(f"Total: {len(dataCluster)}")
     res = collections.defaultdict(int)
     for dataset in dataCluster:

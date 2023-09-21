@@ -90,7 +90,7 @@ class Generator:
             self.RLC: 2,
             self.LSide: 12,
             self.RSide: 12,
-            self.RearEnd: 4,
+            self.RearEnd: 8,
             self.HeadOn: 1,
         }
         ret = list()

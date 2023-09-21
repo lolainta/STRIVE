@@ -36,7 +36,6 @@ def parse_cfg():
 def write_data_row(writer, data: Data, scene: str, identity: str):
     writer.writerow(
         [
-            scene,
             data.timestamp,
             identity,
             data.transform.translation.x,
@@ -51,7 +50,7 @@ def export(d: ColDataset, path: str):
     d.ego.grad()
     with open(path, "w", newline="\n") as csvfile:
         writer = csv.writer(csvfile, delimiter=",")
-        writer.writerow(["scene", "timestamp", "track", "x", "y", "v", "yaw"])
+        writer.writerow(["TIMESTAMP", "TRACK_ID", "X", "Y", "V", "YAW"])
         for data in d.ego.datalist:
             write_data_row(writer, data, d.scene["name"], "ego")
         for data in d.atk.datalist:
@@ -80,7 +79,7 @@ def main():
             dataset: ColDataset = pickle.load(f)
         export(
             dataset,
-            os.path.join(target, f"{root.replace('/','_')}_{dataset.inst['token']}"),
+            os.path.join(target, f"{path.replace('/','_')}.csv"),
         )
 
 
