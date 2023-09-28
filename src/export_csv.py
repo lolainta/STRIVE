@@ -77,9 +77,10 @@ def main():
     for path in tqdm.tqdm(pickles):
         with open(path, "rb") as f:
             dataset: ColDataset = pickle.load(f)
+        assert file[-7:] == ".pickle"
         export(
             dataset,
-            os.path.join(target, f"{path.replace('/','_')}.csv"),
+            os.path.join(target, f"{path.replace('/','_')[:-7]}.csv"),
         )
 
 
