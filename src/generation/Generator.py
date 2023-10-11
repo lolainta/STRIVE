@@ -9,7 +9,6 @@ from nuscenes.map_expansion.map_api import NuScenesMap
 from numpy import rad2deg
 from random import randint
 from copy import deepcopy
-from tqdm import tqdm
 
 
 class Generator:
@@ -151,12 +150,11 @@ class Generator:
 
     def gen_all(self) -> list:
         ret = list()
-        inst_tks: list = self.nuscData.instances
-        insts: list = [self.nuscData.get("instance", tk) for tk in inst_tks]
-        inst_anns: list = [self.nuscData.get_annotations(inst) for inst in insts]
-        npcs_data: list = [self.nuscData.get_npc_data(anns) for anns in inst_anns]
-        assert len(inst_tks) == len(inst_anns)
-        assert len(inst_tks) == len(insts)
+        self.nuscData.fetch_data()
+        inst_tks: list = self.nuscData.inst_tks
+        insts: list = self.nuscData.insts
+        inst_anns: list = self.nuscData.inst_anns
+        npcs_data: list = self.nuscData.npcs
         assert len(inst_tks) == len(npcs_data)
         for inst, npc_data in zip(insts, npcs_data):
             ego_data: Datalist = self.nuscData.get_ego_data()

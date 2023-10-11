@@ -1,10 +1,7 @@
 from generation.Dataset import ColDataset
-from generation.Condition import Condition
-from generation.Data import Data
 from argparse import ArgumentParser
 import os
 import pickle
-import csv
 import tqdm
 
 
@@ -33,34 +30,6 @@ def parse_cfg():
     return args
 
 
-def write_data_row(writer, data: Data, scene: str, identity: str):
-    writer.writerow(
-        [
-            data.timestamp,
-            identity,
-            data.transform.translation.x,
-            data.transform.translation.y,
-            data.velocity,
-            data.transform.rotation.yaw,
-        ]
-    )
-
-
-def export(d: ColDataset, path: str):
-    d.ego.grad()
-    with open(path, "w", newline="\n") as csvfile:
-        writer = csv.writer(csvfile, delimiter=",")
-        writer.writerow(["TIMESTAMP", "TRACK_ID", "X", "Y", "V", "YAW"])
-        for data in d.ego.datalist:
-            write_data_row(writer, data, d.scene["name"], "ego")
-        for data in d.atk.datalist:
-            write_data_row(writer, data, d.scene["name"], d.inst["token"])
-        for npc_tk, npc in zip(d.npc_tks, d.npcs):
-            npc.grad()
-            for data in npc.datalist:
-                write_data_row(writer, data, d.scene["name"], npc_tk)
-
-
 def main():
     cfg = parse_cfg()
 
@@ -78,8 +47,7 @@ def main():
         with open(path, "rb") as f:
             dataset: ColDataset = pickle.load(f)
         assert file[-7:] == ".pickle"
-        export(
-            dataset,
+        dataset.export(
             os.path.join(target, f"{path.replace('/','_')[:-7]}.csv"),
         )
 

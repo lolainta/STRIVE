@@ -1,6 +1,6 @@
 from generation.Data import Data
-from generation.Transform import Transform
 from numpy import cos, sin, gradient
+from csv import writer
 
 
 class Datalist:
@@ -90,3 +90,17 @@ class Datalist:
             cur["samp_tok"] = "XXX"
             ret.append(cur)
         return ret
+
+    def export(self, wrt: writer, identity: str) -> None:
+        self.grad()
+        for d in self.datalist:
+            wrt.writerow(
+                [
+                    d.timestamp,
+                    identity,
+                    d.transform.translation.x,
+                    d.transform.translation.y,
+                    d.velocity,
+                    d.transform.rotation.yaw,
+                ]
+            )

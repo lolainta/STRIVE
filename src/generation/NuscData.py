@@ -2,6 +2,7 @@ from nuscenes.nuscenes import NuScenes
 from generation.Data import Data
 from generation.Datalist import Datalist
 from generation.Transform import Transform
+import csv
 
 
 class NuscData:
@@ -10,13 +11,19 @@ class NuscData:
         self.scene_id = scene
         self.scene = self.nusc.scene[scene]
         self.samples: list
-        self.instances: list
         self.times: list
 
     def fetch_data(self):
         self.samples: list = self.get_samples()
-        self.instances: list = self.get_instances()
-        self.times = self.get_time()
+        self.inst_tks: list = self.get_instances()
+        self.times: list = self.get_time()
+        self.insts: list = [self.get("instance", tk) for tk in self.inst_tks]
+        self.inst_anns: list = [self.get_annotations(inst) for inst in self.insts]
+        self.ego: Datalist = self.get_ego_data()
+        self.npcs: list[Datalist] = [self.get_npc_data(anns) for anns in self.inst_anns]
+        assert len(self.inst_tks) == len(self.inst_anns)
+        assert len(self.inst_tks) == len(self.insts)
+        assert len(self.inst_tks) == len(self.npcs)
 
     def get(self, table: str, token: str) -> dict:
         return self.nusc.get(table, token)
@@ -94,3 +101,12 @@ class NuscData:
         for sample in self.samples:
             ret.append(sample["timestamp"])
         return ret
+
+    def export(self, path: str) -> None:
+        self.fetch_data()
+        with open(path, "w") as f:
+            writer = csv.writer(f, delimiter=",")
+            writer.writerow(["TIMESTAMP", "TRACK_ID", "X", "Y", "V", "YAW"])
+            self.ego.export(writer, "ego")
+            for npc_tk, npc in zip(self.inst_tks, self.npcs):
+                npc.export(writer, npc_tk)

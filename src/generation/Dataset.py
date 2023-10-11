@@ -2,6 +2,7 @@ from generation.Data import Data
 from generation.Datalist import Datalist
 from generation.Condition import Condition
 from nuscenes.map_expansion.map_api import NuScenesMap
+import csv
 
 
 class ColDataset:
@@ -86,3 +87,12 @@ class ColDataset:
             if ls["drivable_area"] == "":
                 return False
         return True
+
+    def export(self, path: str) -> None:
+        with open(path, "w", newline="\n") as csvfile:
+            writer = csv.writer(csvfile, delimiter=",")
+            writer.writerow(["TIMESTAMP", "TRACK_ID", "X", "Y", "V", "YAW"])
+            self.ego.export(writer, "ego")
+            self.atk.export(writer, self.inst["token"])
+            for npc_tk, npc in zip(self.npc_tks, self.npcs):
+                npc.export(writer, npc_tk)
