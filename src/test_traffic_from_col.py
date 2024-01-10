@@ -23,13 +23,18 @@ from losses.traffic_model import (
     compute_disp_err,
     compute_coll_rate_env,
 )
-from datasets.nuscenes_dataset import NuScenesDataset
+from nuscenes.nuscenes import NuScenes
+from datasets.collision_dataset import CollisionDataset
 from datasets.map_env import NuScenesMapEnv
 from losses.traffic_model import compute_coll_rate_veh
 from utils.common import dict2obj, mkdir
 from utils.logger import Logger, throw_err
 from utils.torch import get_device, count_params, load_state
 from utils.config import get_parser, add_base_args
+from icecream import ic
+
+ic.configureOutput(prefix=f"Debug | ", includeContext=True)
+ic.disable()
 
 
 def parse_cfg():
@@ -116,13 +121,48 @@ def parse_cfg():
         default=None,
         help="If not None, samples this many steps into the future rather than future_len",
     )
-
+    parser.add_argument(
+        "--collision_dir",
+        type=str,
+        help="Collision Dataset Path",
+    )
     args = parser.parse_args()
     config_dict = vars(args)
     # Config dict to object
     config = dict2obj(config_dict)
 
     return config, config_dict
+
+
+def compute_v(traj: torch.Tensor) -> np.ndarray:
+    """
+    Compute velocity from trajectory
+    """
+    traj = traj.cpu().numpy()
+    ic(traj.shape)
+    traj_v = np.linalg.norm((traj[:, 1:, :2] - traj[:, :-1, :2]), axis=2) / 0.2
+    traj_v = np.concatenate((traj_v[:, :1], traj_v), axis=1)
+    ic(traj_v.shape)
+    return traj_v
+
+
+def compute_h(traj: torch.Tensor) -> np.ndarray:
+    """
+    Compute heading angle from cosh and sinh
+    """
+    traj = traj.cpu().numpy()
+    cosh = traj[:, :, 2]
+    sinh = traj[:, :, 3]
+    traj_h = np.empty(cosh.shape)
+    for i in range(traj.shape[0]):
+        for j in range(traj.shape[1]):
+            if cosh[i, j] == -1:
+                traj_h[i, j] = np.pi
+            else:
+                temp = sinh[i, j] / (1 + cosh[i, j])
+                traj_h[i, j] = 2 * np.arctan(temp)
+    traj_h = np.rad2deg(traj_h)
+    return traj_h
 
 
 def run_one_epoch(
@@ -161,7 +201,67 @@ def run_one_epoch(
     freq_metrics = {}  # frequency metrics where we sum occurences of something.
     data_idx = 0
     for i, data in enumerate(pbar):
-        scene_graph, map_idx = data
+        scene_graph, map_idx, scene_name = data
+        ic.enable()
+        ic(scene_name)
+        ic(scene_graph)
+        ic(map_idx)
+        ic.disable()
+        # scene_name = scene_name[0]
+        # traj = scene_graph.past[:, :, :4]
+        # traj = traj.to(device)  # (NA, 20, 4)
+        # # ic(traj)
+        # ic.disable()
+        # for j in range(3):
+        #     scene_graph = scene_graph.to(device)
+        #     coll_type = scene_graph.col_t
+        #     map_idx = map_idx.to(device)
+        #     coll_type = coll_type.to(device)
+        #     # ic.enable()
+        #     ic(scene_graph)
+        #     ic.disable()
+        #     if j != 0:
+        #         future_v = (
+        #             torch.from_numpy(future_v)
+        #             .to(device)
+        #             .unsqueeze(2)
+        #             .type(torch.float32)
+        #         )
+        #         future_hdot = (
+        #             torch.from_numpy(future_hdot)
+        #             .to(device)
+        #             .unsqueeze(2)
+        #             .type(torch.float32)
+        #         )
+
+        #         # ic.enable()
+        #         # ic(j)
+        #         ic(traj[:, -8:, :].shape, future_v.shape, future_hdot.shape)
+        #         scene_graph.past = torch.cat(
+        #             [traj[:, -8:, :], future_v[:, -8:, :], future_hdot[:, -8:, :]],
+        #             dim=2,
+        #         )
+        #         ic(scene_graph)
+        #         ic.disable()
+        #     # predict
+        #     pred = model(scene_graph, map_idx, map_env, use_post_mean=True)
+        #     # concate future state to traj
+        #     future_state = pred["future_pred"]  # (NA, 12, 4)
+        #     traj = torch.cat([traj, future_state], dim=1)
+        #     # compute future velocity and heading rate for next iteration
+        #     # ic.enable()
+        #     # ic(traj.shape)
+        #     # ic(future_state.shape)
+        #     future_v = compute_v(future_state)  # (NA, 12)
+        #     future_hdot = compute_h(future_state)  # (NA, 12)
+        #     # ic(future_v.shape)
+        #     # ic(future_hdot.shape)
+        #     ic.disable()
+
+        #     # metrics to save
+        #     batch_freq_metrics = {}
+
+        # continue
         scene_graph = scene_graph.to(device)
         map_idx = map_idx.to(device)
         # print(scene_graph)
@@ -174,6 +274,8 @@ def run_one_epoch(
         loss_dict = loss_fn(scene_graph, pred)
         loss = loss_dict["loss"][0]
         # compute interpretable errors
+        # print(scene_graph.future_gt)
+        # ic(pred)
         err_dict = loss_fn.compute_err(scene_graph, pred, model.get_normalizer())
         # metrics to save
         batch_metrics = {**loss_dict, **err_dict}
@@ -189,7 +291,10 @@ def run_one_epoch(
             # Visualize all results for each agent jointly
             for bidx in range(B):
                 multi_agt_data_idx = data_idx + bidx
-                pred_prefix = "test_recon_multi_%08d_pred" % (multi_agt_data_idx)
+                pred_prefix = (
+                    f"test_recon_multi_{multi_agt_data_idx:08d}_pred_{scene_name[bidx]}"
+                    % ()
+                )
                 pred_out_path = os.path.join(recon_multi_agent_out_path, pred_prefix)
                 nutils.viz_scene_graph(
                     scene_graph,
@@ -260,7 +365,7 @@ def run_one_epoch(
             # Visualize all results for all agents at once
             for bidx in range(B):
                 multi_agt_data_idx = data_idx + bidx
-                pred_prefix = "test_sample_multi_%08d_pred" % (multi_agt_data_idx)
+                pred_prefix = f"test_sample_multi_{multi_agt_data_idx:08d}_pred_{scene_name[bidx]}"
                 pred_out_path = os.path.join(sample_multi_agent_out_path, pred_prefix)
                 # pred
                 nutils.viz_scene_graph(
@@ -281,7 +386,7 @@ def run_one_epoch(
             # Visualize all results for all agents at once
             for bidx in range(B):
                 multi_agt_data_idx = data_idx + bidx
-                pred_prefix = "test_sample_rollout_%08d_pred" % (multi_agt_data_idx)
+                pred_prefix = f"test_sample_rollout_{multi_agt_data_idx:08d}_pred_{scene_name[bidx]}"
                 pred_out_path = os.path.join(sample_rollout_out_path, pred_prefix)
                 # pred
                 nutils.viz_scene_graph(
@@ -367,9 +472,6 @@ def run_one_epoch(
         # Log the loss to the tqdm progress bar
         pbar.set_postfix(progress_bar_metrics)
 
-        pred_attacker_prob = sample_pred["tp_target_prob"]
-        pred_attacker = pred_attacker_prob.topk(1, dim=1)
-
     epoch_metrics = {}
     for k, v in metrics.items():
         metrics[k] = torch.cat(metrics[k])
@@ -394,6 +496,7 @@ def main():
     cfg, cfg_dict = parse_cfg()
 
     # create output directory and logging
+    cfg.out = os.path.join(cfg.out, time.strftime("%Y_%m_%d_%H_%M_%S"))
     mkdir(cfg.out)
     log_path = os.path.join(cfg.out, "test_log.txt")
     Logger.init(log_path)
@@ -416,18 +519,18 @@ def main():
         layers=cfg.map_layers,
         device=device,
     )
-    test_dataset = NuScenesDataset(
+    test_dataset = CollisionDataset(
         data_path,
+        cfg.collision_dir,
         map_env,
         version=cfg.data_version,
-        split="test" if not cfg.test_on_val else "val",
+        # split="test" if not cfg.test_on_val else "val",
+        split="train",
         categories=cfg.agent_types,
         npast=cfg.past_len,
         nfuture=cfg.future_len,
         reduce_cats=cfg.reduce_cats,
-        use_challenge_splits=cfg.use_challenge_splits,
     )
-
     # create loaders
     test_loader = GraphDataLoader(
         test_dataset,

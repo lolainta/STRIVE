@@ -30,6 +30,7 @@ class SceneInteractionNet(nn.Module):
         super(SceneInteractionNet, self).__init__()
 
         # get initial node embeddings
+        # print("in_node_channels:", in_node_channels)
         self.mlp_in = MLP(
             [in_node_channels, 128, 128, msg_node_channels], nonlinearity=nonlinearity
         )

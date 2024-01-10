@@ -6,6 +6,7 @@ import glob, json, os
 
 import torch
 import numpy as np
+from icecream import ic
 
 
 def read_adv_scenes(scene_path):
@@ -95,6 +96,16 @@ class MeanStdNormalizer(object):
         new_size = torch.ones(len(state_data.size())).to(torch.int)
         new_size[-1] = cur_D
         new_size = tuple(new_size)
+        # print(f"cur_D: {cur_D}")
+        # print(f"mean_vals: {self.mean_vals}")
+        # print(f"new_size: {new_size}")
+        # ic(cur_D)
+        # ic(self.mean_vals.shape)
+        # ic(new_size)
+        ic(self.mean_vals[:cur_D])
+        ic(self.mean_vals[:cur_D].reshape(new_size).shape)
+        ic(state_data.device)
+        # ic(state_data.shape)
         cur_mean = self.mean_vals[:cur_D].reshape(new_size).to(state_data.device)
         cur_std = self.std_vals[:cur_D].reshape(new_size).to(state_data.device)
         return (state_data * cur_std) + cur_mean

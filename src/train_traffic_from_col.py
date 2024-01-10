@@ -11,6 +11,7 @@ import torch.optim as optim
 import numpy as np
 
 from torch_geometric.data import DataLoader as GraphDataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 from models.traffic_model import TrafficModel
 from losses.traffic_model import TrafficModelLoss
@@ -30,6 +31,7 @@ from utils.torch import (
 )
 from utils.config import get_parser, add_base_args
 import traceback
+from icecream import ic
 
 
 def parse_cfg():
@@ -128,13 +130,11 @@ def run_one_epoch(
     train=True,
     optimizer=None,
     step_counter=0,
-    use_wandb=False,
+    tboard=None,
 ):
     """
     Run through dataset and for a single epoch. Trains if desired.
     """
-    if use_wandb:
-        import wandb
     if train and optimizer is None:
         throw_err("Must give optimizer to train!")
     prefix = "Train" if train else "Eval"
@@ -149,7 +149,7 @@ def run_one_epoch(
 
     empty_cache = False
     for i, data in enumerate(pbar):
-        scene_graph, map_idx, coll_type, ttc = data
+        scene_graph, map_idx = data
         pred = loss_dict = None
         if empty_cache:
             empty_cache = False
@@ -158,8 +158,6 @@ def run_one_epoch(
         try:
             scene_graph = scene_graph.to(device)
             map_idx = map_idx.to(device)
-            coll_type = coll_type.to(device)
-            ttc = ttc.to(device)
             B = map_idx.size(0)
 
             do_sample = loss_fn.loss_weights["coll_env_prior"] > 0.0
@@ -168,11 +166,11 @@ def run_one_epoch(
                 map_idx,
                 map_env,
                 future_sample=do_sample,
-                coll_type=coll_type,
-                ttc=ttc,
             )
 
+            # ic(pred)
             loss_dict = loss_fn(scene_graph, pred, map_idx=map_idx, map_env=map_env)
+            # ic(loss_dict)
             loss = loss_dict["loss"][0]
 
             if train:
@@ -183,6 +181,8 @@ def run_one_epoch(
 
             # compute interpretable errors
             err_dict = loss_fn.compute_err(scene_graph, pred, model.get_normalizer())
+            # ic(err_dict)
+
         except RuntimeError as e:
             Logger.log("Caught error in training batch %s!" % (str(e)))
             Logger.log("Skipping")
@@ -200,7 +200,7 @@ def run_one_epoch(
         # metrics to save
         batch_metrics = {**loss_dict, **err_dict}
 
-        if use_wandb:
+        if tboard:
             # per-batch wandb metrics
             wandb_batch_metrics = {}
             if train:
@@ -210,9 +210,12 @@ def run_one_epoch(
                         wandb_batch_metrics[prefix + " Batch Mean " + k] = torch.mean(
                             v
                         ).item()
-
             if len(wandb_batch_metrics) > 0:
-                wandb.log(wandb_batch_metrics, step=step_counter)
+                tboard.add_scalar(prefix + " Loss", loss.item(), step_counter)
+                for k, v in wandb_batch_metrics.items():
+                    tboard.add_scalar(k, v, step_counter)
+            # if len(wandb_batch_metrics) > 0:
+            #     wandb.log(wandb_batch_metrics, step=step_counter)
 
         # Metrics to log to the tqdm progress bar
         progress_bar_metrics = {}
@@ -234,31 +237,22 @@ def run_one_epoch(
 
     mean_epoch_loss = wandb_epoch_metrics[prefix + " Epoch Mean loss"]
 
-    if use_wandb and len(wandb_epoch_metrics) > 0:
-        wandb.log(wandb_epoch_metrics, step=step_counter)
-
+    # if use_wandb and len(wandb_epoch_metrics) > 0:
+    #     wandb.log(wandb_epoch_metrics, step=step_counter)
+    if tboard and len(wandb_epoch_metrics) > 0:
+        tboard.add_scalar(prefix + " Epoch Loss", mean_epoch_loss, step_counter)
     return step_counter, mean_epoch_loss
 
 
 def main():
     cfg, cfg_dict = parse_cfg()
-
-    use_wandb = cfg.wandb_project is not None
-    if use_wandb:
-        import wandb
-
-        # wandb setup
-        wandb.init(
-            project=cfg.wandb_project,
-            config=cfg_dict,
-            mode="offline" if cfg.wandb_offline else "online",
-            name=cfg.wandb_name,
-        )
-
     # create output directory and logging
     cfg.out = os.path.join(cfg.out, time.strftime("%Y_%m_%d_%H_%M_%S"))
     mkdir(cfg.out)
     log_path = os.path.join(cfg.out, "train_log.txt")
+    log_dir = os.path.join(cfg.out, "tensorboard")
+    mkdir(log_dir)
+    tboard = SummaryWriter(log_dir=log_dir)
     Logger.init(log_path)
     # save arguments used
     Logger.log("Args: " + str(cfg_dict))
@@ -282,7 +276,9 @@ def main():
     # create nuscenes object out here and pass into dataset to save memory
     Logger.log("Creating nuscenes data object...")
     nusc_obj = NuScenes(
-        version="v1.0-{}".format(cfg.data_version), dataroot=data_path, verbose=True
+        version="v1.0-{}".format("mini" if cfg.data_version == "mini" else "trainval"),
+        dataroot=data_path,
+        verbose=True,
     )
     train_dataset = CollisionDataset(
         data_path,
@@ -346,7 +342,7 @@ def main():
         conv_stride_list=cfg.conv_stride_list,
         conv_filter_list=cfg.conv_filter_list,
     ).to(device)
-    print(model)
+    # print(model)
     loss_weights = {
         "recon": cfg.loss_recon,
         "kl": cfg.loss_kl,
@@ -402,8 +398,8 @@ def main():
             cur_beta = compute_kl_weight(epoch, cfg.kl_anneal_end, cfg.loss_kl)
             loss_fn.loss_weights["kl"] = cur_beta
             Logger.log("KL weight %f..." % (loss_fn.loss_weights["kl"]))
-            if use_wandb:
-                wandb.log({"kl_weight": loss_fn.loss_weights["kl"]}, step=step_counter)
+            if tboard:
+                tboard.add_scalar("KL Weight", loss_fn.loss_weights["kl"], epoch)
             if epoch == cfg.kl_anneal_end:
                 Logger.log("KL ANNEALING FINISHED: resetting val loss tracking...")
                 min_eval_loss = float("inf")
@@ -421,7 +417,7 @@ def main():
             train=True,
             optimizer=optimizer,
             step_counter=step_counter,
-            use_wandb=use_wandb,
+            tboard=tboard,
         )
         # lot of excess memory used by pygeometric
         torch.cuda.empty_cache()
@@ -440,7 +436,7 @@ def main():
                     cfg.out,
                     train=False,
                     step_counter=step_counter,
-                    use_wandb=use_wandb,
+                    tboard=tboard,
                 )
                 if mean_eval_loss < min_eval_loss:
                     Logger.log("Lowest eval loss so far! Saving checkpoint...")
@@ -453,8 +449,6 @@ def main():
                         cur_epoch=epoch,
                         min_val_loss=min_eval_loss,
                     )
-                    if use_wandb:
-                        wandb.save(save_file)
                 torch.cuda.empty_cache()
 
         # save checkpoint if desired
@@ -468,12 +462,6 @@ def main():
             save_state(
                 save_file, model, optimizer, cur_epoch=epoch, min_val_loss=min_eval_loss
             )
-            if use_wandb:
-                wandb.save(save_file)
-
-    if use_wandb:
-        # save full log after training
-        wandb.save(log_path)
 
 
 if __name__ == "__main__":

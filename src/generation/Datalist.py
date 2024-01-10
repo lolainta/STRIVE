@@ -67,15 +67,24 @@ class Datalist:
             )
         return
 
-    def get_max_curvature(self) -> float:
+    def get_max_curvature(self, step: int = 1) -> float:
         max_curvature = 0
-        for i in range(len(self.datalist) - 1):
+        for i in range(len(self.datalist) - step):
             cur = self.datalist[i].transform
-            new = self.datalist[i + 1].transform
+            new = self.datalist[i + step].transform
             diff = new - cur
             curvature = abs(diff.rotation.yaw) / diff.translation.length()
             max_curvature = max(max_curvature, curvature)
         return max_curvature
+
+    def get_max_rotation(self) -> float:
+        max_rotation = 0
+        for i in range(len(self.datalist) - 1):
+            cur = self.datalist[i].transform
+            new = self.datalist[i + 1].transform
+            diff = new - cur
+            max_rotation = max(max_rotation, abs(diff.rotation.yaw))
+        return max_rotation
 
     def serialize(self) -> list:
         ret = list()

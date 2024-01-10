@@ -3,6 +3,8 @@ from generation.Datalist import Datalist
 from generation.Condition import Condition
 from nuscenes.map_expansion.map_api import NuScenesMap
 import csv
+from numpy import pi, rad2deg
+from icecream import ic
 
 
 class ColDataset:
@@ -15,6 +17,7 @@ class ColDataset:
         self.atk: Datalist
         self.cond: Condition = cond
         self.idx = None
+        self.filtered = False
 
     def set_ego(self, ego: Datalist) -> None:
         self.ego: Datalist = ego
@@ -36,9 +39,13 @@ class ColDataset:
     def filter(self) -> bool:
         if not self.filter_by_vel_acc():
             return False
-        if not self.filter_by_collision():
+        if not self.filter_by_rotation(pi / 2):
             return False
-        if not self.filter_by_curvature():
+        if not self.filter_by_curvature(3):
+            return False
+        if not self.filter_by_step_curvature(3):
+            return False
+        if not self.filter_by_collision():
             return False
         return True
 
@@ -47,9 +54,16 @@ class ColDataset:
         maxv = max([t.velocity for t in self.atk])
         maxa = max([t.accelerate for t in self.atk])
         if maxv < 25 and maxa < 10:
+            self.filtered = True
             return True
         # print('filtered', self.scene['token'], self.inst['token'], maxv, maxa)
         return False
+
+    def filter_by_rotation(self, threshold: float) -> bool:
+        if self.atk.get_max_curvature() > threshold:
+            self.filtered = True
+            return False
+        return True
 
     def filter_by_collision(self) -> bool:
         blocks = dict()
@@ -71,21 +85,57 @@ class ColDataset:
                 continue
             for poly in blocks[d.timestamp]:
                 if d.check_collision(poly):
+                    self.filtered = True
                     return False
         return True
 
-    def filter_by_curvature(self) -> bool:
-        if self.atk.get_max_curvature() > 5:
+    def filter_by_curvature(self, threshold: int) -> bool:
+        if self.atk.get_max_curvature() > threshold:
+            self.filtered = True
+            return False
+        return True
+
+    def filter_by_step_curvature(self, threshold: int) -> bool:
+        if self.atk.get_max_curvature(step=2) > threshold:
+            self.filtered = True
             return False
         return True
 
     def filter_by_map(self, map: NuScenesMap) -> bool:
+        if not self.filter_side_intersection(map):
+            return False
+        if not self.filter_by_drivable_area(map):
+            return False
+        return True
+
+    def filter_by_drivable_area(self, map: NuScenesMap) -> bool:
         for d in self.atk:
             cord = d.transform.translation
             x, y = cord.x, cord.y
-            ls = map.layers_on_point(x, y)
-            if ls["drivable_area"] == "":
+            datk = map.record_on_point(x, y, "drivable_area")
+            if datk == "":
+                self.filtered = True
                 return False
+        return True
+
+    def filter_side_intersection(self, map: NuScenesMap) -> bool:
+        if self.cond != Condition.JC or self.cond != Condition.LTAP:
+            return True
+        d = self.atk[-1]
+        cord = d.transform.translation
+        x, y = cord.x, cord.y
+
+        def is_intersection(x, y):
+            rstk = map.record_on_point(x, y, "road_segment")
+            if rstk == "":
+                return False
+            rs = map.get("road_segment", rstk)
+            return rs["is_intersection"]
+
+        if not is_intersection(x, y):
+            print(f"JC not in intersection: {self.scene['name']} {self.inst['token']}")
+            self.filtered = True
+            return False
         return True
 
     def export(self, path: str) -> None:
@@ -95,4 +145,6 @@ class ColDataset:
             self.ego.export(writer, "ego")
             self.atk.export(writer, self.inst["token"])
             for npc_tk, npc in zip(self.npc_tks, self.npcs):
+                if npc_tk == self.inst["token"]:
+                    continue
                 npc.export(writer, npc_tk)

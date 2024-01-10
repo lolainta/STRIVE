@@ -9,6 +9,7 @@ from nuscenes.map_expansion.map_api import NuScenesMap
 from numpy import rad2deg
 from random import randint
 from copy import deepcopy
+from icecream import ic
 
 
 class Generator:
@@ -64,6 +65,7 @@ class Generator:
         ego: Datalist,
         inst_anns: list,
     ) -> ColDataset:
+        cond = deepcopy(cond)
         ego_data: Datalist = deepcopy(ego)
         col = ColDataset(
             self.nuscData.scene,
@@ -82,7 +84,19 @@ class Generator:
         assert col.atk.timelist == col.ego.timelist
         return col
 
-    def gen_by_inst(self, npc_data: Datalist, ego_data: Datalist) -> list:
+    def gen_by_inst(
+        self,
+        npc_data: Datalist,
+        ego_data: Datalist,
+        map: NuScenesMap,
+    ) -> list:
+        def is_intersection(x, y):
+            rstk = map.record_on_point(x, y, "road_segment")
+            if rstk == "":
+                return False
+            rs = map.get("road_segment", rstk)
+            return rs["is_intersection"]
+
         npc_data.compile()
         ops = {
             self.LLC: 2,
@@ -93,13 +107,26 @@ class Generator:
             self.HeadOn: 1,
         }
         ret = list()
-        for tid, last_frame in enumerate(self.nuscData.times):
-            ttc = last_frame - self.nuscData.times[0]
-            if ttc < 10 * 1000000 or ttc > 15 * 1000000:
-                continue
+        for tid in range(10, 17):
+            if tid >= len(ego_data):
+                break
             ego_final: Data = ego_data[tid]
             for fid, op in enumerate(ops.items()):
                 func, num = op
+
+                if func == self.LSide:
+                    # check if ego at left hand side
+                    mid = ego_data[0].transform.rotation
+                    atk_rel = npc_data[0].transform.rotation - mid
+                    if atk_rel < 0:
+                        continue
+                elif func == self.RSide:
+                    # check if ego at right hand side
+                    mid = ego_data[0].transform.rotation
+                    atk_rel = npc_data[0].transform.rotation - mid
+                    if atk_rel > 0:
+                        continue
+
                 atk_final: Data = func(ego_final)
                 for idx in range(num):
                     if func == self.LLC:
@@ -114,6 +141,7 @@ class Generator:
                         atk_final.move(randint(-10, 10) / 10, 90)
                     else:
                         assert False, "Unknown function"
+
                     res = quintic_polynomials_planner(
                         src=npc_data[0].transform,
                         sv=npc_data[0].velocity,
@@ -125,6 +153,7 @@ class Generator:
                     )
                     res.gen_timelist()
                     assert res.timelist == self.nuscData.times[: tid + 1]
+
                     if func in [self.LLC, self.RLC]:
                         cond = Condition.LC
                     elif func == self.RearEnd:
@@ -132,23 +161,52 @@ class Generator:
                     elif func == self.HeadOn:
                         cond = Condition.HO
                     else:
-                        if len(npc_data) < 5:
+                        assert len(ego_data[: tid + 1]) == len(
+                            res
+                        ), f"{tid} {len(npc_data)} {len(res)}"
+                        for i in range(1, len(res)):
+                            if is_intersection(
+                                res[i].transform.translation.x,
+                                res[i].transform.translation.y,
+                            ):
+                                continue
+                            diff = (
+                                ego_data[tid - i].transform.rotation
+                                - res[-i].transform.rotation
+                            )
+                            diff = abs(rad2deg(diff))
+                            eps = 15
+                            if abs(diff - 180) < eps:
+                                cond = Condition.LTAP
+                            elif abs(diff - 90) < eps:
+                                cond = Condition.JC
+                            else:
+                                cond = None
+                            break
+                        if cond is None:
                             continue
-                        eyaw = rad2deg(ego_data[-5].transform.rotation.yaw)
-                        nyaw = rad2deg(npc_data[-5].transform.rotation.yaw)
-                        diff = abs(eyaw - nyaw)
-                        diff = min(diff, 360 - diff)
-                        if diff > 150:
-                            cond = Condition.LTAP
-                        elif 60 < diff < 120:
-                            cond = Condition.JC
-                        else:
-                            cond = None
-                    if cond is not None:
-                        ret.append((f"{fid}-{idx}-{tid}", res, cond))
+
+                        # if len(npc_data) < 5:
+                        #     continue
+                        # diff = (
+                        #     ego_data[tid - 5].transform.rotation
+                        #     - res[-5].transform.rotation
+                        # )
+                        # diff = abs(rad2deg(diff))
+                        # eps = 15
+                        # if abs(diff - 180) < eps:
+                        #     cond = Condition.LTAP
+                        # elif abs(diff - 90) < eps:
+                        #     cond = Condition.JC
+                        # else:
+                        #     cond = None
+                        # if cond is None:
+                        #     continue
+
+                    ret.append((f"{fid}-{idx}-{tid}", res, deepcopy(cond)))
         return ret
 
-    def gen_all(self) -> list:
+    def gen_all(self, map: NuScenesMap) -> list:
         ret = list()
         self.nuscData.fetch_data()
         inst_tks: list = self.nuscData.inst_tks
@@ -159,7 +217,7 @@ class Generator:
         for inst, npc_data in zip(insts, npcs_data):
             ego_data: Datalist = self.nuscData.get_ego_data()
             ego_data.compile()
-            res = self.gen_by_inst(npc_data, ego_data)
+            res = self.gen_by_inst(npc_data, ego_data, map)
             for idx, r, cond in res:
                 col = self.encapsulate_collision(
                     idx, r, cond, inst, ego_data, inst_anns

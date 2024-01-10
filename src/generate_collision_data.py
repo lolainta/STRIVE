@@ -43,7 +43,7 @@ def parse_cfg():
 
 def gen_scene(gen: Generator, map: NuScenesMap, data_dir: str):
     gen.fetch_data()
-    dataCluster = gen.gen_all()
+    dataCluster = gen.gen_all(map)
     validData = gen.filter_by_map(dataCluster, map)
     osz = len(dataCluster)
     sz = len(validData)
@@ -105,7 +105,7 @@ def run(args):
             map_name=mapName,
         )
         nuscs.append((nuscData, nuscMap))
-        if len(nuscs) >= 200:
+        if len(nuscs) >= 250:
             break
 
     print(f"{len(nuscs)} scenes to generate")

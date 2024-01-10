@@ -25,27 +25,6 @@ def get_parser(description):
 
 
 def add_base_args(parser):
-    # wandb (optional)
-    parser.add_argument(
-        "--wandb_project",
-        type=str,
-        default=None,
-        help="Name of project to use for wandb. Only used if not None. Note WANDB_API_KEY env variable must also be set properly.",
-    )
-    parser.add_argument(
-        "--wandb_name",
-        type=str,
-        default=None,
-        help="Display name for this run on wandb",
-    )
-    parser.add_argument(
-        "--wandb_offline",
-        dest="wandb_offline",
-        action="store_true",
-        help="If given, only save wandb data offline.",
-    )
-    parser.set_defaults(wandb_offline=False)
-
     # logging
     parser.add_argument(
         "--out",
@@ -65,7 +44,7 @@ def add_base_args(parser):
         "--data_version",
         type=str,
         default="trainval",
-        choices=["trainval", "mini", "hcis"],
+        choices=["trainval", "mini", "middle"],
         help="Whether to use full nuscenes or mini.",
     )
     parser.add_argument(

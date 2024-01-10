@@ -15,10 +15,15 @@ class Rotation:
             assert False, "Rotation construct failed "
 
     def __sub__(self, o):
-        ret = self.yaw - o.yaw
-        if ret > pi or ret < -pi:
-            ret = 2 * pi - ret
-
+        assert -pi <= self.yaw <= pi, f"Rotation sub failed: {self.yaw}"
+        assert -pi <= o.yaw <= pi, f"Rotation sub failed: {o.yaw}"
+        ret = o.yaw - self.yaw
+        if not -pi <= ret <= pi:
+            if ret > pi:
+                ret -= 2 * pi
+            elif ret < -pi:
+                ret += 2 * pi
+        assert -pi <= ret <= pi, f"Rotation sub failed: {self.yaw}-{o.yaw}={ret}"
         return ret
 
     def set_rotation(self, rotation: list) -> None:

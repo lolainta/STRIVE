@@ -14,6 +14,7 @@ from nuscenes.map_expansion.map_api import NuScenesMap
 from nuscenes.map_expansion.arcline_path_utils import discretize_lane
 
 from datasets.utils import normalize_scene_graph
+from tqdm import tqdm
 
 
 def get_nusc_maps(data_folder):
@@ -580,7 +581,8 @@ def viz_scene_graph(
     show_gt=False,
     traj_color_val=None,
     traj_color_bounds=None,
-    viz_bounds=[-17.0, -38.5, 60.0, 38.5],
+    # viz_bounds=[-17.0, -38.5, 60.0, 38.5],
+    viz_bounds=[-64, -64, 64, 64],
     center_viz=False,
     car_colors=None,
     show_gt_idx=None,
@@ -594,7 +596,7 @@ def viz_scene_graph(
     :param map_idx: (B,) the maps corresponding to each scene in the batch
     :param map_env: map environment used to render map crops
     :param bidx: which scene in the batch to visualize
-    :param out_path: path previx to write out (extension .png or .mp4 will be added)
+    :param out_path: path prefix to write out (extension .png or .mp4 will be added)
     :param state_normalizer:
     :param att_normalizer:
     :param future_pred: (NA, FT, 4) or (NA, NS, FT, 4) if given, overrides the .future attribute in the scene graph
@@ -851,7 +853,11 @@ def viz_map_crop(
     if gt_kin is not None and car_lw is not None:
         gt_car_colors = ["white"] * gt_kin.size(0)
         render_obj_observation(
-            gt_kin, car_lw, viz_traj=viz_traj, viz_init_car=False, color=gt_car_colors
+            gt_kin,
+            car_lw,
+            viz_traj=viz_traj,
+            viz_init_car=False,
+            color=gt_car_colors,
         )
     if car_kin is not None and car_lw is not None:
         render_obj_observation(
@@ -866,12 +872,13 @@ def viz_map_crop(
             traj_markers=traj_markers,
             traj_markersize=traj_markersize,
         )
+    from icecream import ic
 
     style_ax()
     plt.xlim(0, x.shape[2])
     plt.ylim(0, x.shape[1])
     plt.tight_layout()
-    print("saving", out_path)
+    tqdm.write(f"saving {out_path}")
     plt.savefig(out_path, bbox_inches="tight", pad_inches=0)
     plt.close(fig)
 

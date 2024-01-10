@@ -13,6 +13,9 @@ from utils.transforms import transform2frame
 from utils.torch import c2c
 import datasets.nuscenes_utils as nutils
 
+import torch.nn.functional as F
+from icecream import ic
+
 ENV_COLL_THRESH = 0.05  # up to 5% of vehicle can be off the road
 VEH_COLL_THRESH = (
     0.02  # IoU must be over this to count as a collision for metric (not loss)
@@ -61,13 +64,16 @@ class TrafficModelLoss(nn.Module):
         # KL divergence loss
         pm, pv = pred["prior_out"]  # NA x z_size
         qm, qv = pred["posterior_out"]
+        tp_pred = pred["tp_target_prob"]
+        tp_gt = scene_graph.tp_mask.squeeze(1)
+        tp_cls_loss = F.binary_cross_entropy(tp_pred, tp_gt, reduction="none")
         # kl_normal(qm, qv, pm, pv)
         kl_loss = kl_normal(qm, qv, pm, pv)
-
         # total weighted loss
         loss = (
             self.loss_weights["recon"] * recon_loss.mean()
             + self.loss_weights["kl"] * kl_loss.mean()
+            + 10 * tp_cls_loss.mean()
         )
 
         # prior_coll_loss = None
@@ -99,6 +105,7 @@ class TrafficModelLoss(nn.Module):
             ego_inds = scene_graph.ptr[:-1]
             # unnormalize
             veh_att = self.att_normalizer.unnormalize(scene_graph.lw[ego_inds])
+            ic(veh_att.shape)
             # build the loss function
             env_coll_loss = EnvCollLoss(
                 veh_att, map_idx, map_env, pred["future_pred"].size(1)
@@ -118,6 +125,7 @@ class TrafficModelLoss(nn.Module):
             "loss": loss.view((1,)),
             "recon_loss": recon_loss,  # (num_valid_frames, )
             "kl_loss": kl_loss,  # (NA, )
+            "tp_loss": tp_cls_loss,
         }
 
         # if prior_coll_loss is not None:
@@ -136,11 +144,16 @@ class TrafficModelLoss(nn.Module):
         """
         gt_future = scene_graph.future_gt  # NA x FT x 6
         pred_future = pred["future_pred"]  # NA x FT x 4
-
+        ic(gt_future.shape)
+        ic(pred_future.shape)
         NA, FT, _ = gt_future.size()
 
+        # ic.enable()
         gt_future = normalizer.unnormalize(gt_future)
+        ic(gt_future.shape)
         pred_future = normalizer.unnormalize(pred_future)
+        ic(pred_future.shape)
+        # ic.disable()
 
         # only want to compute errors for timesteps we have GT data
         gt_future = gt_future[scene_graph.future_vis == 1.0]

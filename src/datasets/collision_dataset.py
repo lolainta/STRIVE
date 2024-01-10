@@ -1,7 +1,7 @@
 # Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # SPDX-License-Identifier: MIT
-
+from random import shuffle
 import os, itertools
 
 from tqdm import tqdm
@@ -425,8 +425,9 @@ class CollisionDataset(Dataset):
         dataCluster = list()
         scene_tks = [sc["name"] for sc in self.nusc.scene if sc["name"] in self.scenes]
         colDir = os.path.join(self.col_data_path, self.version)
-        for root, dir, file in os.walk(colDir):
+        for root, dir, file in tqdm(list(os.walk(colDir))):
             for f in file:
+                # print(f, len(dataCluster))
                 if f.endswith(".pickle"):
                     with open(os.path.join(root, f), "rb") as pickle_file:
                         data: ColDataset = pickle.load(pickle_file)
@@ -458,15 +459,19 @@ class CollisionDataset(Dataset):
                     "w": 1.73,
                     "l": 4.084,
                     "k": "ego",
+                    "is_atk": False,
                 },
                 data.inst["token"]: {
                     "traj": data.atk.serialize(),
                     "w": ann["size"][0],
                     "l": ann["size"][1],
                     "k": cat,
+                    "is_atk": True,
                 },
             }
             for npc_tk, npc in zip(data.npc_tks, data.npcs):
+                if npc_tk == data.inst["token"]:
+                    continue
                 npc: Datalist
                 fst_npc_tk = data.inst["first_annotation_token"]
                 ann = self.nusc.get("sample_annotation", fst_npc_tk)
@@ -477,24 +482,27 @@ class CollisionDataset(Dataset):
                     "w": ann["size"][0],
                     "l": ann["size"][1],
                     "k": cat,
+                    "is_atk": False,
                 }
+        # for k, v in scene2data.items():
+        #     print(k, len(v))
         return self.post_process(scene2data)
 
     def post_process(self, data):
         scene2info = {}
         print("Post-processing data...")
         drivable_raster = self.map_env.nusc_raster[:, 0]
-        carpark_raster = None
-        if "carpark_area" in self.map_env.layer_map:
-            carpark_raster = self.map_env.nusc_raster[
-                :, self.map_env.layer_map["carpark_area"]
-            ]
-        seq_map = (
-            []
-        )  # for deterministic iteration through data maps from data_idx -> (scene_name, start_idx)
+        carpark_raster = (
+            self.map_env.nusc_raster[:, self.map_env.layer_map["carpark_area"]]
+            if "carpark_area" in self.map_env.layer_map
+            else None
+        )
+        seq_map = []
+        filter_agent = {}
+        # for deterministic iteration through data maps from data_idx -> (scene_name, start_idx)
         for scene in tqdm(data):
+            filter_agent[scene] = []
             scene2info[scene] = {}
-
             challenge_inst_samp_list = None
             if self.use_challenge_splits:
                 challenge_inst_samp_list = self.pred_challenge_scenes.get(scene, [])
@@ -502,7 +510,6 @@ class CollisionDataset(Dataset):
                     chall_inst_samp: True
                     for chall_inst_samp in challenge_inst_samp_list
                 }
-
             # first process ego info so we know all timestamps (since always available)
             ego_data = data[scene]["ego"]
             # map timestamps -> frame idx to aggregate other incomplete agents
@@ -562,16 +569,17 @@ class CollisionDataset(Dataset):
                     "lw": ego_lw,
                     "is_vis": ego_is_vis,
                     "k": "ego",
+                    "is_atk": False,
                 }
-            scene2info[scene]["ego"] = ego_info
-
+            valid_attacker = False
             # now process other agents
             # first map onto same timeline as ego with nans at other spots
             #   also compute velocities.
+
             for name in data[scene]:
                 if name in ["ego", "condition"]:
                     continue
-                info = {}
+                info = {"is_atk": data[scene][name]["is_atk"]}
                 inst_tok = name
                 t_list = [row["t"] for row in data[scene][name]["traj"]]
                 x_list = np.array(
@@ -645,6 +653,7 @@ class CollisionDataset(Dataset):
 
                 # if all frames nan (never on drivable surface), throw it out
                 if np.sum(np.isnan(cur_x), axis=0)[0] == cur_x.shape[0]:
+                    filter_agent[scene].append(name)
                     continue
 
                 # compute speed
@@ -682,6 +691,7 @@ class CollisionDataset(Dataset):
                         ),
                         "k": data[scene][name]["k"],
                     }
+                    assert False
                 else:
                     info = {
                         "traj": traj,
@@ -689,7 +699,10 @@ class CollisionDataset(Dataset):
                         "lw": lw,
                         "is_vis": is_vis,
                         "k": data[scene][name]["k"],
+                        "is_atk": data[scene][name]["is_atk"],
                     }
+                if info["is_atk"]:
+                    valid_attacker = True
                 scene2info[scene][name] = info
 
                 if self.use_challenge_splits:
@@ -719,8 +732,19 @@ class CollisionDataset(Dataset):
                     )
                     for start_idx in range(0, T - self.seq_len, self.seq_interval)
                 ]
-                seq_map.extend(scene_seq)
-
+                if valid_attacker:
+                    seq_map.extend(scene_seq)
+                    scene2info[scene]["ego"] = ego_info
+                    keys = list(scene2info[scene].keys())
+                    shuffle(keys)
+                    # print(keys)
+                    keys.remove("ego")
+                    keys = ["ego"] + keys
+                    # print(keys)
+                    tmp = {k: scene2info[scene][k] for k in keys}
+                    scene2info[scene] = tmp
+                    # print(scene, len(scene2info[scene]))
+        # json.dump(filter_agent, open("filter_agent.json", "w"))
         return scene2info, seq_map
 
     def __len__(self):
@@ -754,7 +778,17 @@ class CollisionDataset(Dataset):
         past_vis = [ego_data["is_vis"][sidx:midx]]
         fut_vis = [ego_data["is_vis"][midx:eidx]]
         coll_type_list = [col_type_one_hot]
-        ttc_list = [ttc]
+        ttc_list = [[ttc]]
+        tp_mask = [False]
+        atk = [
+            agent
+            for agent in self.data[scene_name]
+            if self.data[scene_name][agent]["is_atk"]
+        ]
+        assert len(atk) == 1
+        atk_data = self.data[scene_name][atk[0]]
+        tp_cand = atk_data["traj"][midx - 1, :2] - ego_data["traj"][midx - 1, :2]
+        tp_gt = [[False]]
         if self.use_challenge_splits:
             # prepend data for the agent we're making a prediction for
             # so ego is not at 0, challenge data is
@@ -768,7 +802,6 @@ class CollisionDataset(Dataset):
             lw = [agent_data["lw"]] + lw
             past_vis = [agent_data["is_vis"][sidx:midx]] + past_vis
             fut_vis = [agent_data["is_vis"][midx:eidx]] + fut_vis
-
         for agent in self.data[scene_name]:
             if agent == "ego":
                 continue
@@ -790,7 +823,9 @@ class CollisionDataset(Dataset):
             past_vis.append(agent_data["is_vis"][sidx:midx])
             fut_vis.append(agent_data["is_vis"][midx:eidx])
             coll_type_list.append(col_type_one_hot)
-            ttc_list.append(ttc)
+            tp_mask.append(agent_data["is_atk"])
+            ttc_list.append([ttc])
+            tp_gt.append([agent_data["is_atk"]])
 
         past = torch.Tensor(np.stack(past, axis=0))
         future = torch.Tensor(np.stack(future, axis=0))
@@ -800,7 +835,16 @@ class CollisionDataset(Dataset):
         fut_vis = torch.Tensor(np.stack(fut_vis, axis=0))
         coll_type_vec = torch.Tensor(np.stack(coll_type_list, axis=0))
         ttc_list = torch.Tensor(np.stack(ttc_list, axis=0))
-
+        # tp_mask = torch.Tensor(np.stack(tp_mask, axis=0))
+        # tp_mask_list = [tp_mask for _ in range(len(ttc_list))]
+        # tp_mask_list = torch.stack(tp_mask_list, dim=0)
+        tp_cand = torch.Tensor(np.stack(tp_cand, axis=0))
+        tp_cand_list = [tp_cand for _ in range(len(ttc_list))]
+        tp_cand_list = torch.stack(tp_cand_list, dim=0)
+        tp_gt = torch.Tensor(np.stack(tp_gt, axis=0))
+        # assert (
+        #     tp_mask[1] == True
+        # ), f"{scene_name} {len(self.data[scene_name])} {col_type} {tp_mask} {ttc}"
         # normalize
         past_gt = self.normalizer.normalize(past)  # gt past (no noise)
         past = self.normalizer.normalize(past)
@@ -850,7 +894,10 @@ class CollisionDataset(Dataset):
             "lw": lw,
             "past_vis": past_vis,
             "future_vis": fut_vis,
+            "col_t": coll_type_vec,
+            "ttc": ttc_list,
+            "tp_mask": tp_gt,
+            "tp_cand": tp_cand_list,
         }
         scene_graph = Graph(**graph_prop_dict)
-
-        return scene_graph, map_idx, coll_type_vec, ttc_list
+        return scene_graph, map_idx, f"{col_type.name}_{scene_name}"

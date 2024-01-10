@@ -1,17 +1,13 @@
 # Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # SPDX-License-Identifier: MIT
-
-import itertools
-
-import numpy as np
-
 import torch
 from torch import nn
 from torch.distributions import Normal
 
 from models.interaction_net import SceneInteractionNet
 from models.common import MLP, car_dynamics
+from models.tp_selector import TPSelector
 
 from datasets.utils import normalize_scene_graph
 from utils.transforms import transform2frame, kinematics2angle, kinematics2vec
@@ -182,6 +178,7 @@ class TrafficModel(nn.Module):
             + self.NC
             + self.NCond
             + 1  # TTC
+            + 2  # tp
         )
         decode_in_size = decode_in_size + self.att_feat_size
         self.decoder_net = SceneInteractionNet(
@@ -198,6 +195,9 @@ class TrafficModel(nn.Module):
             self.past_feat_size,  # hidden size
             self.num_memory_layers,  # num stacked GRU layers
             batch_first=True,  # batch_first (B, T, D) inputs outputs
+        )
+        self.tp_selector_layer = TPSelector(
+            self.past_feat_size + self.map_feat_out_size,
         )
 
     def set_normalizer(self, normalizer):
@@ -223,8 +223,6 @@ class TrafficModel(nn.Module):
         scene_graph,
         map_idx,
         map_env,
-        coll_type,
-        ttc,
         use_post_mean=False,
         future_sample=False,
     ):
@@ -260,26 +258,26 @@ class TrafficModel(nn.Module):
             # sample from posterior in training
             z_samp = self.rsample(post_mu, post_var)
         future_pred = self.decoder(
-            scene_graph, map_feat, past_feat, z_samp, map_idx, map_env, coll_type, ttc
+            scene_graph, map_feat, past_feat, z_samp, map_idx, map_env
         )  # (NA, FT, 4)
 
+        tp_target_prob = self.tp_selector_layer(
+            past_feat,
+            map_feat,
+            z_samp,
+            scene_graph.tp_cand,
+        )
         net_out = {
             "prior_out": (prior_mu, prior_var),
             "posterior_out": (post_mu, post_var),
             "future_pred": future_pred,
+            "tp_target_prob": tp_target_prob,
         }
 
         if future_sample:
             prior_samp = self.rsample(prior_mu, prior_var)
             future_samp = self.decoder(
-                scene_graph,
-                map_feat,
-                past_feat,
-                prior_samp,
-                map_idx,
-                map_env,
-                coll_type,
-                ttc,
+                scene_graph, map_feat, past_feat, prior_samp, map_idx, map_env
             )  # (NA, FT, 4)
             net_out["future_samp"] = future_samp
 
@@ -395,8 +393,6 @@ class TrafficModel(nn.Module):
         map_idx,
         map_env,
         num_samples,
-        coll_type,
-        ttc,
         include_mean=False,
         nfuture=None,
     ):
@@ -441,14 +437,20 @@ class TrafficModel(nn.Module):
             z_samp.transpose(0, 1),
             map_idx,
             map_env,
-            coll_type,
-            ttc,
             nfuture=nfuture,
         )  # (NA, NS, FT, 4)
+
+        tp_target_prob = self.tp_selector_layer(
+            past_feat,
+            map_feat,
+            z_samp,
+            scene_graph.tp_cand,
+        )
         net_out = {
             "prior_out": (prior_mu, prior_var),
             "z_samp": z_samp.view(NS, NA, self.z_size).transpose(0, 1),
             "future_pred": future_pred,
+            "tp_target_prob": tp_target_prob,
         }
 
         z_logprob = (
@@ -701,8 +703,6 @@ class TrafficModel(nn.Module):
         z,
         map_idx,
         map_env,
-        coll_type,
-        ttc,
         ext_future=None,
         nfuture=None,
     ):
@@ -728,8 +728,6 @@ class TrafficModel(nn.Module):
             z,
             map_idx,
             map_env,
-            coll_type,
-            ttc,
             ext_future=ext_future,
             nfuture=nfuture,
         )
@@ -742,8 +740,6 @@ class TrafficModel(nn.Module):
         z,
         map_idx,
         map_env,
-        coll_type,
-        ttc,
         ext_future=None,
         nfuture=None,
     ):
@@ -762,6 +758,9 @@ class TrafficModel(nn.Module):
         cur_lw = scene_graph.lw
         cur_veh_len = self.att_normalizer.unnormalize(scene_graph.lw)[:, 0].unsqueeze(1)
         ego_inds = scene_graph.ptr[:-1]
+        cur_ctype = scene_graph.col_t
+        cur_ttc = scene_graph.ttc
+        cur_tpcand = scene_graph.tp_cand
         # init positions to last frame of past
         scene_graph.pos = scene_graph.past[:, -1, :4]
         zsize = z.size()
@@ -777,6 +776,11 @@ class TrafficModel(nn.Module):
             cur_sem = cur_sem.unsqueeze(1).expand(NA, NS, scene_graph.sem.size(1))
             cur_lw = cur_lw.unsqueeze(1).expand(NA, NS, scene_graph.lw.size(1))
             cur_veh_len = cur_veh_len.unsqueeze(1).expand(NA, NS, 1).reshape(NA * NS, 1)
+            cur_ctype = cur_ctype.unsqueeze(1).expand(NA, NS, scene_graph.col_t.size(1))
+            cur_ttc = cur_ttc.unsqueeze(1).expand(NA, NS, 1)
+            cur_tpcand = cur_tpcand.unsqueeze(1).expand(
+                NA, NS, scene_graph.tp_cand.size(1)
+            )
             prev_state = (
                 prev_state.unsqueeze(1)
                 .expand(NA, NS, prev_state.size(1))
@@ -806,13 +810,13 @@ class TrafficModel(nn.Module):
             )
         for t in range(FT):
             # update scene graph node features with z + cur_past_feat + cur_map_feat + sem_class
-            coll_type = coll_type.unsqueeze(1).reshape(NA, 5)
-            ttc = ttc.unsqueeze(1).reshape(NA, 1)
-
             decoder_in_feat = torch.cat(
-                [cur_past_feat, cur_map_feat, cur_sem, z, coll_type, ttc], dim=-1
+                [cur_past_feat, cur_map_feat, cur_sem, z], dim=-1
             )
             decoder_in_feat = torch.cat([decoder_in_feat, cur_lw], dim=-1)
+            decoder_in_feat = torch.cat(
+                [decoder_in_feat, cur_ctype, cur_ttc, cur_tpcand], dim=-1
+            )
             scene_graph.x = decoder_in_feat
             # run scene graph decoding
             decoder_out = self.decoder_net(scene_graph)  # (NA, traj_dim)

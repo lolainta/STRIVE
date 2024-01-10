@@ -2,6 +2,8 @@ import argparse
 import pickle
 from generation.Dataset import ColDataset
 import os
+from tqdm import tqdm, trange
+import glob
 
 
 def parse_cfg():
@@ -17,13 +19,6 @@ def parse_cfg():
         help="Dataset folder",
     )
     parser.add_argument(
-        "-o",
-        "--out",
-        required=True,
-        default=None,
-        help="Output folder",
-    )
-    parser.add_argument(
         "-v",
         "--version",
         required=True,
@@ -36,43 +31,67 @@ def parse_cfg():
     return args
 
 
-def filter_data(dataset: ColDataset) -> bool:
-    if not dataset.filter_by_vel_acc():
-        return False
-    if not dataset.filter_by_collision():
-        return False
-    if not dataset.filter_by_curvature():
-        return False
-    return True
-
-
-def filter_dir(scene_dir: str, args):
-    print(f"Start: {scene_dir}")
-    cur = 0
+def filter_dir(scene_dir: str) -> tuple:
+    # tqdm.write(f"Filtering: {scene_dir}")
+    cur, total = 0, 0
     for file in os.listdir(scene_dir):
         with open(os.path.join(scene_dir, file), "rb") as f:
             dataset: ColDataset = pickle.load(f)
-        # print(f"Filtering: {dataset.scene['name']} {file}")
-        if filter_data(dataset):
-            out_dir = os.path.join(
-                args.out, args.version, dataset.type.name, dataset.scene["name"]
-            )
-            out = os.path.join(out_dir, f"{cur:02d}.pickle")
-            os.makedirs(out_dir, exist_ok=True)
-            with open(out, "wb") as f:
-                pickle.dump(dataset, f)
+        # tqdm.write(f"Filtering: {dataset.scene['name']} {file}")
+        total += 1
+        if not dataset.filter():
             cur += 1
-    print(f"Finished: {scene_dir} {len(os.listdir(scene_dir))} -> {cur}")
+            os.remove(os.path.join(scene_dir, file))
+        # with open(os.path.join(scene_dir, file), "wb") as f:
+        #     pickle.dump(dataset, f, protocol=pickle.HIGHEST_PROTOCOL)
+    if cur != 0:
+        tqdm.write(f"Filtered: {cur} out of {total} from {scene_dir}")
+    return cur, total
+
+
+def bind_nusc_with_map(version):
+    from nuscenes.nuscenes import NuScenes
+    from nuscenes.map_expansion.map_api import NuScenesMap
+    from generation.NuscData import NuscData
+
+    maps = dict()
+    nuscs = list()
+    nusc_obj = NuScenes(
+        version=f"v1.0-{'mini' if version == 'mini' else 'trainval'}",
+        dataroot=f"data/nuscenes/{'mini' if version == 'mini' else 'trainval'}",
+        verbose=True,
+    )
+    for i in trange(len(nusc_obj.scene)):
+        nuscData = NuscData(nusc_obj, i)
+        mapName = nuscData.get_map()
+        if mapName not in maps:
+            nuscMap = NuScenesMap(
+                dataroot=f"data/nuscenes/{'mini' if version == 'mini' else 'trainval'}",
+                map_name=mapName,
+            )
+            maps[mapName] = nuscMap
+        else:
+            nuscMap = maps[mapName]
+        nuscs.append((nuscData, nuscMap))
+    return nuscs
 
 
 def main():
     args = parse_cfg()
-    target_dir = os.path.join(args.out, args.version)
-    os.makedirs(target_dir, exist_ok=True)
+    nusc = bind_nusc_with_map(args.version)
+    pickles = glob.glob(os.path.join(args.dir, "**/*.pickle"), recursive=True)
+    print(f"Total: {len(pickles)}")
+    cnt, total = 0, 1e-6
+    pbar = tqdm(total=len(pickles))
     for root, dir, files in os.walk(args.dir):
         files.sort()
         if len(files) and all(f[-7:] == (".pickle") for f in files):
-            filter_dir(root, args)
+            cur, cdir = filter_dir(root)
+            cnt += cur
+            total += cdir
+            assert cdir == len(files), f"{cdir} {len(files)}"
+            pbar.update(len(files))
+    print(f"Filtered: {cnt} out of {int(total)} from {args.dir}. Ratio {cnt/total}")
 
 
 if __name__ == "__main__":
